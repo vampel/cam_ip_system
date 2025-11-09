@@ -36,7 +36,9 @@ Sistema de control de asistencia automático usando **YOLO**, **OpenCV** y **Shi
 - **RTSP/HTTP** - Protocolos de streaming
 
 ## 📁 Estructura del Proyecto
+
 cam_ip_system/
+```
 ├── backend/ # Django Backend
 │ ├── attendance_system/ # Configuración Django
 │ ├── detection/ # Lógica de detección YOLO
@@ -55,7 +57,7 @@ cam_ip_system/
 │ ├── package.json
 │ └── tailwind.config.js
 └── README.md
-
+```
 
 ## ⚡ Instalación Rápida
 
