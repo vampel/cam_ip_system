@@ -37,27 +37,27 @@ Sistema de control de asistencia automático usando **YOLO**, **OpenCV** y **Shi
 
 ## 📁 Estructura del Proyecto
 
-cam_ip_system/
-```
-├── backend/ # Django Backend
-│ ├── attendance_system/ # Configuración Django
-│ ├── detection/ # Lógica de detección YOLO
-│ │ ├── yolo_detector.py
-│ │ ├── views.py
-│ │ └── urls.py
-│ ├── requirements.txt
-│ └── manage.py
-├── frontend/ # React Frontend
-│ ├── src/
-│ │ ├── components/ # Componentes React
-│ │ ├── pages/ # Páginas principales
-│ │ ├── hooks/ # Custom hooks
-│ │ ├── services/ # API services
-│ │ └── styles/ # Estilos Tailwind
-│ ├── package.json
-│ └── tailwind.config.js
-└── README.md
-```
+cam_ip_system/  
+├── backend/ # Django Backend  
+│ ├── attendance_system/ # Configuración Django  
+│ ├── detection/ # Lógica de detección YOLO  
+│ │ ├── yolo_detector.py  
+│ │ ├── views.py  
+│ │ └── urls.py  
+│ ├── requirements.txt  
+│ └── manage.py  
+├── frontend/ # React Frontend  
+│ ├── src/  
+│ │ ├── components/ # Componentes React  
+│ │ ├── pages/ # Páginas principales  
+│ │ ├── hooks/ # Custom hooks  
+│ │ ├── services/ # API services  
+│ │ └── styles/ # Estilos Tailwind  
+│ ├── package.json  
+│ └── tailwind.config.js  
+└── README.md  
+
+
 
 ## ⚡ Instalación Rápida
 
