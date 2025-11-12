@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'detection',
     'dashboard',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -129,3 +130,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Configurar CORS
 CORS_ALLOW_ALL_ORIGINS = True
 ALLOWED_HOSTS = ['*']  # Para desarrollo
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}

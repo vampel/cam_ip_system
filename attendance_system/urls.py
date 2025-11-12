@@ -18,8 +18,20 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+# --- Asegúrate de que estas líneas existan ---
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+# -------------------------------------
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('detection/', include('detection.urls')),
-    path('', include('dashboard.urls')),  # ← Esta línea es crucial
+    path('', include('dashboard.urls')),
+
+    # --- Y asegúrate de que estas líneas existan ---
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # ---------------------------------
 ]
