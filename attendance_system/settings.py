@@ -215,3 +215,7 @@ LOGGING = {
 MAX_CAMERAS = 10
 DETECTION_INTERVAL = 1.0  # seconds
 YOLO_MODEL_PATH = 'yolov8n.pt'
+
+LOGIN_URL = '/api/web/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/api/web/login/'
