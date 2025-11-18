@@ -104,6 +104,9 @@ def dashboard(request):
                 if camera_status:
                     camera_status['original_name'] = camera_data.get('original_name', 'Cámara Sin Nombre')
                     camera_status['sanitized_name'] = sanitized_name
+                    camera_status['stream_url'] = camera_data.get('stream_url', '')
+                    camera_status['username'] = camera_data.get('username')
+                    camera_status['password'] = camera_data.get('password')
                     cameras_info.append(camera_status)
         except Exception as e:
             print(f"Error procesando cámara: {e}")
@@ -120,6 +123,8 @@ def add_camera_web(request):
     if request.method == 'POST':
         original_name = request.POST.get('camera_name', '').strip()
         stream_url = request.POST.get('stream_url', '').strip()
+        username = request.POST.get('camera_user', '').strip() or None
+        password = request.POST.get('camera_password', '').strip() or None
         
         if not original_name or not stream_url:
             messages.error(request, 'Nombre y URL son requeridos')
@@ -136,13 +141,15 @@ def add_camera_web(request):
                 messages.error(request, f'La cámara "{original_name}" ya existe')
                 return redirect('dashboard')
             
-            # Agregar al manager y sesión
+            # Agregar al manager (SOLO 2 argumentos)
             camera_manager.add_camera(sanitized_name, normalized_url)
             
             existing_cameras.append({
                 'original_name': original_name,
                 'sanitized_name': sanitized_name,
-                'stream_url': normalized_url
+                'stream_url': normalized_url,
+                'username': username,
+                'password': password
             })
             request.session['user_cameras'] = existing_cameras
             request.session.modified = True
@@ -223,12 +230,33 @@ def health_check(request):
 
 def video_feed(request, camera_sanitized_name):
     """Stream de video"""
-    camera_status = camera_manager.get_camera_status(camera_sanitized_name)
-    if not camera_status:
+    # Buscar la cámara en la sesión para obtener credenciales
+    camera_data = None
+    for cam in request.session.get('user_cameras', []):
+        if cam.get('sanitized_name') == camera_sanitized_name:
+            camera_data = cam
+            break
+    
+    if not camera_data:
         return JsonResponse({'error': 'Camera not found'}, status=404)
     
     def generate_frames():
-        cap = cv2.VideoCapture(camera_status['stream_url'])
+        # Usar las credenciales si están disponibles
+        stream_url = camera_data['stream_url']
+        username = camera_data.get('username')
+        password = camera_data.get('password')
+        
+        # Si hay credenciales, construir URL con autenticación
+        if username and password:
+            # Para HTTP básico: http://usuario:contraseña@ip/path
+            parsed_url = urlparse(stream_url)
+            auth_url = f"{parsed_url.scheme}://{username}:{password}@{parsed_url.netloc}{parsed_url.path}"
+            if parsed_url.query:
+                auth_url += f"?{parsed_url.query}"
+            cap = cv2.VideoCapture(auth_url)
+        else:
+            cap = cv2.VideoCapture(stream_url)
+            
         while True:
             success, frame = cap.read()
             if not success:
@@ -237,6 +265,7 @@ def video_feed(request, camera_sanitized_name):
             frame = buffer.tobytes()
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        cap.release()
     
     return StreamingHttpResponse(
         generate_frames(), 

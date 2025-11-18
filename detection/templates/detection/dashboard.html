@@ -269,7 +269,7 @@
         <h1 class="welcome">Bienvenido, {{ user.username }}! 👋</h1>
         <div>
             <button class="refresh-btn" onclick="window.location.reload()">🔄 Actualizar</button>
-            <form method="POST" action="{% url 'logout' %}" style="display: inline;">
+            <form method="POST" action="{% url 'logout_view' %}" style="display: inline;">
                 {% csrf_token %}
                 <button type="submit" class="logout-btn">🚪 Cerrar Sesión</button>
             </form>
@@ -309,7 +309,7 @@
                             <div>
                                 <label for="camera_user">Usuario:</label>
                                 <input type="text" id="camera_user" name="camera_user" 
-                                       placeholder="Ej: admin" value="admin">
+                                       placeholder="Ej: admin">
                             </div>
                             <div>
                                 <label for="camera_password">Contraseña:</label>
@@ -317,7 +317,7 @@
                                        placeholder="Ej: admin123">
                             </div>
                         </div>
-                        <div class="url-hint">Credenciales por defecto ESP32-CAM: admin / admin123</div>
+                        <div class="url-hint">Credenciales por defecto ESP32-CAM: vacio</div>
                     </div>
                     <button type="submit">➕ Agregar Cámara</button>
                 </form>
