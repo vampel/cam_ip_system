@@ -3,6 +3,9 @@ from . import views
 
 urlpatterns = [
     # Vistas HTML
+    path('api/cameras/', camera_list, name='api_cameras'),
+    path('api/detections/<int:camera_id>/', detection_history, name='api_detections'),
+    path('api/stats/', occupancy_stats, name='api_stats'),
     path('web/login/', views.login_page, name='login_page'),
     path('web/login/submit/', views.login_submit, name='login_submit'),
     path('web/logout/', views.logout_view, name='logout'),
@@ -19,3 +22,4 @@ urlpatterns = [
     # Root - redirige al login
     path('', views.login_page, name='api-root'),
 ]
+

@@ -10,6 +10,7 @@ import cv2
 import re
 from urllib.parse import urlparse
 from .camera_manager import CameraManager
+import numpy as np
 
 # CameraManager global
 camera_manager = CameraManager()
@@ -229,8 +230,7 @@ def health_check(request):
     })
 
 def video_feed(request, camera_sanitized_name):
-    """Stream de video"""
-    # Buscar la cámara en la sesión para obtener credenciales
+    """Stream de video para ESP32-CAM (maneja 1 conexión)"""
     camera_data = None
     for cam in request.session.get('user_cameras', []):
         if cam.get('sanitized_name') == camera_sanitized_name:
@@ -241,33 +241,45 @@ def video_feed(request, camera_sanitized_name):
         return JsonResponse({'error': 'Camera not found'}, status=404)
     
     def generate_frames():
-        # Usar las credenciales si están disponibles
         stream_url = camera_data['stream_url']
-        username = camera_data.get('username')
-        password = camera_data.get('password')
         
-        # Si hay credenciales, construir URL con autenticación
-        if username and password:
-            # Para HTTP básico: http://usuario:contraseña@ip/path
-            parsed_url = urlparse(stream_url)
-            auth_url = f"{parsed_url.scheme}://{username}:{password}@{parsed_url.netloc}{parsed_url.path}"
-            if parsed_url.query:
-                auth_url += f"?{parsed_url.query}"
-            cap = cv2.VideoCapture(auth_url)
-        else:
-            cap = cv2.VideoCapture(stream_url)
-            
-        while True:
-            success, frame = cap.read()
-            if not success:
-                break
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        cap.release()
+        # Para ESP32-CAM, usar OpenCV con configuración específica
+        cap = cv2.VideoCapture(stream_url)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        cap.set(cv2.CAP_PROP_FPS, 5)  # FPS bajos para ESP32
+        
+        if not cap.isOpened():
+            # Devolver frame de error
+            error_frame = create_error_frame("No se puede conectar")
+            ret, buffer = cv2.imencode('.jpg', error_frame)
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            return
+        
+        try:
+            while True:
+                success, frame = cap.read()
+                if not success:
+                    break
+                    
+                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if ret:
+                    frame_bytes = buffer.tobytes()
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        finally:
+            cap.release()
     
     return StreamingHttpResponse(
         generate_frames(), 
         content_type='multipart/x-mixed-replace; boundary=frame'
     )
+
+def create_error_frame(message):
+    """Crear un frame de error cuando no hay conexión"""
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    cv2.putText(frame, message, (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    cv2.putText(frame, "Verifica la conexion ESP32-CAM", (50, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    return frame

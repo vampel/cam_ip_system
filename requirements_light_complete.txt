@@ -1,0 +1,29 @@
+Django==4.2.7
+django-cors-headers==4.3.1
+djangorestframework==3.14.0
+
+# COMPUTER VISION - VERSIONES ACTUALES CPU
+torch==2.1.2+cpu
+torchvision==0.16.2+cpu
+ultralytics==8.0.186
+opencv-python-headless==4.8.1.78
+numpy==1.24.3
+Pillow==10.0.1
+
+# DATOS & GRÁFICOS
+matplotlib==3.7.5
+pandas==2.0.3
+
+# HTTP & ASYNC
+requests==2.31.0
+celery==5.3.4
+
+# BASE DE DATOS
+mysqlclient==2.2.0
+
+# UTILIDADES
+python-dotenv==1.0.0
+django-crispy-forms==2.0
+sqlparse==0.5.3
+asgiref==3.10.0
+tzdata==2025.2
