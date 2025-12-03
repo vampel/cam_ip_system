@@ -8,6 +8,7 @@ from django.contrib import messages
 import json
 import cv2
 import re
+import time
 from urllib.parse import urlparse
 from .camera_manager import CameraManager
 import numpy as np

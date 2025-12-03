@@ -1,15 +1,18 @@
+# detection/urls.py
 from django.urls import path
 from . import views
-from . import api_views 
+from . import api_views  # ✅ Ya está importado
 
 urlpatterns = [
+    # APIs para frontend React (futuro)
+    path('api/cameras/', api_views.camera_list, name='api_cameras'),  # ✅ Agregar api_views.
+    path('api/detections/<int:camera_id>/', api_views.detection_history, name='api_detections'),
+    path('api/stats/', api_views.occupancy_stats, name='api_stats'),
+    
     # Vistas HTML
-    path('api/cameras/', camera_list, name='api_cameras'),
-    path('api/detections/<int:camera_id>/', detection_history, name='api_detections'),
-    path('api/stats/', occupancy_stats, name='api_stats'),
     path('web/login/', views.login_page, name='login_page'),
     path('web/login/submit/', views.login_submit, name='login_submit'),
-    path('web/logout/', views.logout_view, name='logout'),
+    path('web/logout/', views.logout_view, name='logout_view'),  # ✅ Cambiar a 'logout_view'
     path('web/dashboard/', views.dashboard, name='dashboard'),
     path('web/cameras/add/', views.add_camera_web, name='add_camera_web'),
     path('web/cameras/<str:camera_sanitized_name>/control/', views.control_camera_web, name='control_camera_web'),
@@ -23,4 +26,3 @@ urlpatterns = [
     # Root - redirige al login
     path('', views.login_page, name='api-root'),
 ]
-
