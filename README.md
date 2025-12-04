@@ -38,11 +38,12 @@ Sistema de control de asistencia automático usando **YOLO**, **OpenCV** y **Shi
 ## 📁 Estructura del Proyecto
 
 cam_ip_system/  
-├── backend/ # Django Backend  
+├── backend/ # Django Backend 
+│ ├── messaging/ # 
 │ ├── attendance_system/ # Configuración Django  
-│ ├── management/ # MQrabbit
 │ ├── dashboard/ # host web temp 
 │ ├── detection/ # Lógica de detección YOLO
+│ │ ├── management/ # MQrabbit(?)
 │ │ ├── yolo_detector.py  
 │ │ ├── views.py  
 │ │ └── urls.py  

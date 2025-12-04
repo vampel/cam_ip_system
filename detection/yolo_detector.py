@@ -7,17 +7,19 @@ import time
 from datetime import datetime
 import requests
 from django.utils import timezone
+from .youtube_utils import YouTubeStreamExtractor
 
 class AttendanceDetector:
     def __init__(self):
-        # Cargar modelo YOLO pre-entrenado (se descargará automáticamente)
+        # Cargar modelo YOLO pre-entrenado
         print("🔧 Inicializando modelo YOLO...")
         self.model = YOLO('yolov8n.pt')  # Modelo nano - rápido y eficiente
         self.cameras = {}
         self.running = False
         self.detection_threads = []
+        self.youtube_extractor = YouTubeStreamExtractor()
         print("✅ Modelo YOLO cargado correctamente")
-        
+    
     def add_camera(self, name, stream_url):
         """Agregar cámara ESP32 al sistema"""
         self.cameras[name] = {
@@ -31,7 +33,54 @@ class AttendanceDetector:
             'fps': 0
         }
         print(f"📹 Cámara '{name}' agregada: {stream_url}")
-        
+    
+    def _capture_frame(self, url):
+        """Capturar frame de cualquier fuente"""
+        # DETECTAR si es YouTube URL
+        if 'youtube.com' in url or 'youtu.be' in url:
+            return self._capture_youtube_frame(url)
+        else:
+            # Proceso normal para otras URLs
+            return self._capture_normal_frame(url)
+    
+    def _capture_normal_frame(self, url):
+        """Capturar frame normal (HTTP/JPEG)"""
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                img_array = np.frombuffer(response.content, np.uint8)
+                frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                return frame
+        except Exception as e:
+            print(f"📷 Error capturando frame normal: {e}")
+        return None
+    
+    def _capture_youtube_frame(self, youtube_url):
+        """Capturar frame de stream YouTube"""
+        try:
+            # Obtener stream directo
+            stream_url = self.youtube_extractor.get_youtube_stream_url(youtube_url)
+            if not stream_url:
+                return None
+            
+            # Usar OpenCV para capturar frame del stream
+            cap = cv2.VideoCapture(stream_url)
+            
+            # Configurar timeout
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+            
+            # Leer frame
+            ret, frame = cap.read()
+            cap.release()
+            
+            if ret:
+                return frame
+                
+        except Exception as e:
+            print(f"🎥 Error capturando YouTube: {e}")
+            
+        return None
+    
     def process_camera(self, camera_name):
         """Procesar una cámara específica con YOLO"""
         camera = self.cameras[camera_name]
@@ -42,7 +91,7 @@ class AttendanceDetector:
         
         while self.running and camera_name in self.cameras:
             try:
-                # Capturar frame desde ESP32-CAM
+                # Capturar frame
                 frame = self._capture_frame(camera['url'])
                 if frame is not None:
                     frame_count += 1
@@ -85,18 +134,6 @@ class AttendanceDetector:
                 print(f"❌ Error en {camera_name}: {str(e)}")
                 camera['status'] = f'error: {str(e)}'
                 time.sleep(5)  # Esperar antes de reintentar
-                
-    def _capture_frame(self, url):
-        """Capturar frame desde ESP32-CAM"""
-        try:
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                img_array = np.frombuffer(response.content, np.uint8)
-                frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-                return frame
-        except Exception as e:
-            print(f"📷 Error capturando frame: {e}")
-        return None
     
     def _count_objects(self, results, class_id):
         """Contar objetos de una clase específica"""
