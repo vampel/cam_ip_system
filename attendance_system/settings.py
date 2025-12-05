@@ -123,7 +123,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
-    BASE_DIR.parent / 'SP' / 'build' / 'static',  # Archivos del build de React
+    # BASE_DIR.parent / 'SP' / 'build' / 'static',  # Archivos del build de React
 ]
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -227,3 +227,44 @@ YOLO_MODEL_PATH = 'yolov8n.pt'
 LOGIN_URL = '/api/web/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/api/web/login/'
+
+import os
+from pathlib import Path
+
+# ... configuración existente ...
+
+# Configuración para Vite (React)
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Archivos estáticos
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR.parent, 'SP', 'dist'),  # Vite usa 'dist'
+]
+
+# Templates
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [
+            BASE_DIR.parent / 'SP' / 'dist',  # React build
+        ],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+# CORS
+CORS_ALLOW_ALL_ORIGINS = True  # Para desarrollo
+# O específica:
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:3000",  # Alternativo
+]   
