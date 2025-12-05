@@ -1,20 +1,14 @@
-from django.contrib import admin
-from django.urls import path, include
-from django.shortcuts import redirect
+﻿from django.urls import path
 from detection import views
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    
-    # Redirigir raíz a login personalizado
-    path('', lambda request: redirect('/api/web/login/')),
-    
-    # Redirigir accounts/login/ de Django a tu sistema
-    path('accounts/login/', lambda request: redirect('/api/web/login/')),
-    
-    # Tus URLs existentes
-    path('login/', views.login_page, name='login_page'),
-    path('login/submit/', views.login_submit, name='login_submit'),
-    path('logout/', views.logout_view, name='logout_view'),
-    path('api/', include('detection.urls')),
+    path('cameras/add/', views.add_camera_view),
+    path('cameras/<str:camera_id>/start/', views.start_camera_view),
+    path('cameras/<str:camera_id>/stop/', views.stop_camera_view),
+    path('cameras/<str:camera_id>/status/', views.camera_status_view),
+    path('cameras/<str:camera_id>/frame/', views.camera_frame_view),
+    path('cameras/<str:camera_id>/remove/', views.remove_camera_view),
+    path('cameras/all/', views.all_cameras_view),
+    path('cameras/<str:camera_id>/detections/', views.camera_detections_view),
 ]
+# attendance_system/settings.py

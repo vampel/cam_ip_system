@@ -6,48 +6,47 @@ from pathlib import Path
 from datetime import timedelta
 import os
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# BASE DIR
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# ============================
+# SECURITY
+# ============================
 SECRET_KEY = 'django-insecure-your-secret-key-here-change-in-production'
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+ALLOWED_HOSTS = ["*"]
 
-ALLOWED_HOSTS = ['*']
 
-# Application definition
+# ============================
+# INSTALLED APPS
+# ============================
 INSTALLED_APPS = [
+    # Django apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
-    # Third party apps
+
+    # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-    
+
     # Local apps
     'detection',
     'dashboard',
     'messaging',
 ]
 
-# Configuración RabbitMQ
-RABBITMQ_HOST = 'localhost'
-RABBITMQ_PORT = 5672
-RABBITMQ_USER = 'guest'
-RABBITMQ_PASSWORD = 'guest'
 
+# ============================
+# MIDDLEWARE
+# ============================
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Must be first
+    'corsheaders.middleware.CorsMiddleware',  # Debe ir primero
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -57,12 +56,23 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'attendance_system.urls'
 
+# ============================
+# URLS / WSGI
+# ============================
+ROOT_URLCONF = 'attendance_system.urls'
+WSGI_APPLICATION = 'attendance_system.wsgi.application'
+
+
+# ============================
+# TEMPLATES (para React build)
+# ============================
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            BASE_DIR.parent / 'SP' / 'build',  # React build/index.html
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -75,10 +85,10 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'attendance_system.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# ============================
+# DATABASE
+# ============================
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -86,46 +96,55 @@ DATABASES = {
     }
 }
 
-# Password validation
-# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
+
+# ============================
+# AUTH
+# ============================
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Internationalization
-# https://docs.djangoproject.com/en/4.2/topics/i18n/
+
+# ============================
+# INTERNATIONALIZATION
+# ============================
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.2/howto/static-files/
-STATIC_URL = 'static/'
+
+# ============================
+# STATIC & MEDIA
+# ============================
+STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [
+    BASE_DIR.parent / 'SP' / 'build' / 'static',  # Archivos del build de React
+]
+
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ============================
+# REST FRAMEWORK
+# ============================
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # Cambiar en producción
+    ],
+}
 
 
-
-# JWT Configuration
+# ============================
+# JWT AUTH
+# ============================
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -135,75 +154,54 @@ SIMPLE_JWT = {
 
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUDIENCE': None,
-    'ISSUER': None,
 
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-
-    'JTI_CLAIM': 'jti',
-
-    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
-# CORS Configuration
-CORS_ALLOW_ALL_ORIGINS = True  # Only for development
+
+# ============================
+# CORS
+# ============================
+CORS_ALLOW_ALL_ORIGINS = True  # Para desarrollo
+
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
-    "http://127.0.0.1:8000",
 ]
 
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
 
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
+# ============================
+# RABBITMQ CONFIG
+# ============================
+RABBITMQ_HOST = 'localhost'
+RABBITMQ_PORT = 5672
+RABBITMQ_USER = 'guest'
+RABBITMQ_PASSWORD = 'guest'
 
-# Logging configuration
+
+# ============================
+# LOGGING
+# ============================
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+
     'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
+        'console': {'class': 'logging.StreamHandler'},
         'file': {
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / 'debug.log',
         },
     },
+
     'root': {
         'handlers': ['console', 'file'],
         'level': 'INFO',
     },
+
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
@@ -218,9 +216,12 @@ LOGGING = {
     },
 }
 
-# Custom settings
+
+# ============================
+# CUSTOM SETTINGS
+# ============================
 MAX_CAMERAS = 10
-DETECTION_INTERVAL = 1.0  # seconds
+DETECTION_INTERVAL = 1.0
 YOLO_MODEL_PATH = 'yolov8n.pt'
 
 LOGIN_URL = '/api/web/login/'
