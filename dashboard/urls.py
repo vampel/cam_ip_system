@@ -12,4 +12,8 @@ urlpatterns = [
     path('api/cameras/all/', views.all_cameras_view, name='all_cameras'),
     path('api/cameras/<str:camera_id>/detections/', views.camera_detections_view, name='camera_detections'),
     path('', views.dashboard, name='dashboard'),
+
+
+    path('stream/<str:camera_id>/', views.video_feed, name='video_feed'),
+    path('api/<str:camera_id>/stats/', views.camera_stats_api, name='camera_stats_api'),
 ]

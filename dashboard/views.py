@@ -1,8 +1,9 @@
-# dashboard/views.py - VERSIÓN SIN EMULACIÓN
-from django.http import JsonResponse, HttpResponse
+# dashboard/views.py - TU VERSIÓN ORIGINAL + STREAMING
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
 import json
+import time
 
 from detection.camera_manager import camera_manager
 
@@ -106,3 +107,69 @@ def all_cameras_view(request):
 
 def dashboard_view(request):
     return render(request, 'dashboard/index.html')
+
+
+# ============================================================
+# NUEVAS FUNCIONES PARA STREAMING (NO TOCAN LAS ANTERIORES)
+# ============================================================
+
+def video_feed(request, camera_id):
+    """
+    Stream de video CON bounding boxes de YOLO
+    URL: /dashboard/stream/<camera_id>/
+    """
+    def generate():
+        while True:
+            try:
+                frame_bytes = camera_manager.get_camera_frame(camera_id, with_boxes=True)
+                
+                if frame_bytes:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                else:
+                    time.sleep(0.1)
+                    
+            except Exception as e:
+                print(f"Error en video_feed: {e}")
+                time.sleep(0.1)
+    
+    return StreamingHttpResponse(
+        generate(),
+        content_type='multipart/x-mixed-replace; boundary=frame'
+    )
+
+
+def camera_stats_api(request, camera_id):
+    """
+    API para stats en tiempo real (para actualizar números sin refrescar)
+    URL: /dashboard/api/<camera_id>/stats/
+    """
+    try:
+        status = camera_manager.get_camera_status(camera_id)
+        
+        if not status:
+            return JsonResponse({'error': 'Camera not found'}, status=404)
+        
+        detections = camera_manager.get_camera_detections(camera_id)
+        
+        # Contar personas
+        person_count = sum(1 for d in detections if d.get('label') == 'person')
+        
+        # Contar por tipo
+        object_counts = {}
+        for d in detections:
+            label = d.get('label', 'unknown')
+            object_counts[label] = object_counts.get(label, 0) + 1
+        
+        return JsonResponse({
+            'camera_id': camera_id,
+            'running': status.get('running', False),
+            'fps': status.get('fps', 0),
+            'total_detections': len(detections),
+            'person_count': person_count,
+            'object_counts': object_counts,
+            'timestamp': time.time()
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

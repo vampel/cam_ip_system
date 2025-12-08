@@ -143,7 +143,7 @@
         .person-count-badge {
             position: absolute;
             top: 10px;
-            left: 10px;
+            right: 10px;
             background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 10px 20px;
@@ -156,6 +156,20 @@
             backdrop-filter: blur(5px);
             z-index: 10;
             border: 2px solid #4caf50;
+        }
+        
+        .fps-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #4fc3f7;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            z-index: 10;
+            border: 2px solid #4fc3f7;
         }
         
         .camera-info {
@@ -227,6 +241,22 @@
             margin-bottom: 15px;
         }
         
+        .detection-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .detection-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            background: rgba(79, 195, 247, 0.2);
+            border: 1px solid #4fc3f7;
+            color: #4fc3f7;
+        }
+        
         @keyframes slideIn {
             from { transform: translateY(-20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
@@ -263,19 +293,22 @@
     {% endif %}
 
     <div class="control-panel">
-        <h2><i class="fas fa-video-plus"></i> Agregar Cámara YouTube</h2>
+        <h2><i class="fas fa-video-plus"></i> Agregar Cámara</h2>
         <form method="POST" action="{% url 'add_camera_web' %}">
             {% csrf_token %}
             <div class="form-grid">
                 <input type="text" name="camera_name" class="form-control" 
-                       placeholder="Nombre (ej: Tokyo Live)" required>
+                       placeholder="Nombre (ej: Tokyo Live, ESP32-CAM Entrada, Cámara IP Oficina)" required>
                 <input type="text" name="stream_url" class="form-control" 
-                       placeholder="URL de YouTube" 
+                       placeholder="URL (YouTube, ESP32-CAM IP, RTSP, HTTP)" 
                        value="https://www.youtube.com/watch?v=DjdUEyjx8GM">
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Agregar
                 </button>
             </div>
+            <small style="color: #888; display: block; margin-top: 8px;">
+                Soporta: YouTube, ESP32-CAM (192.168.x.x:81/stream), Cámaras IP (rtsp://), HTTP streams
+            </small>
         </form>
         
         <div style="margin-top: 15px;">
@@ -304,22 +337,30 @@
             </div>
             
             <div class="video-container">
-                {% if camera.status == 'running' %}
-                    <img src="/api/stream/{{ camera.sanitized_name }}/?t={{ camera.last_update }}" 
+                {% if camera.running %}
+                    <!-- STREAMING EN VIVO CON YOLO BOUNDING BOXES -->
+                    <img src="{% url 'video_feed' camera.sanitized_name %}" 
                          class="video-frame" 
                          id="frame-{{ camera.sanitized_name }}"
                          alt="Stream {{ camera.original_name }}"
-                         onerror="handleError('{{ camera.sanitized_name }}')">
+                         onerror="handleError('{{ camera.sanitized_name }}', this)">
                     
+                    <!-- Contador de personas en tiempo real -->
                     <div class="person-count-badge">
                         <i class="fas fa-users"></i>
                         <span id="count-{{ camera.sanitized_name }}">{{ camera.person_count }}</span>
                         <small style="font-size: 0.8rem; margin-left: 5px;">personas</small>
                     </div>
+                    
+                    <!-- FPS en tiempo real -->
+                    <div class="fps-badge">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span id="fps-{{ camera.sanitized_name }}">{{ camera.fps|floatformat:1 }}</span> FPS
+                    </div>
                 {% else %}
                     <div class="video-placeholder">
                         <i class="fas fa-video-slash"></i>
-                        <p>Cámara {{ camera.status }}</p>
+                        <p>Cámara {{ camera.status|default:"stopped" }}</p>
                         {% if camera.status == 'starting' %}
                             <p class="loading" style="margin-top: 10px;">
                                 <i class="fas fa-spinner fa-spin"></i> Conectando...
@@ -331,23 +372,36 @@
             
             <div class="camera-info">
                 <div class="info-row">
-                    <span class="info-label"><i class="fas fa-hashtag"></i> ID:</span>
-                    <span class="info-value">{{ camera.video_id|default:"N/A" }}</span>
+                    <span class="info-label"><i class="fas fa-link"></i> URL:</span>
+                    <span class="info-value" style="font-size: 0.75rem;">{{ camera.stream_url|truncatechars:40 }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label"><i class="fas fa-users"></i> Detectadas:</span>
-                    <span class="info-value">{{ camera.person_count }} personas</span>
+                    <span class="info-label"><i class="fas fa-users"></i> Personas:</span>
+                    <span class="info-value" id="info-count-{{ camera.sanitized_name }}">{{ camera.person_count }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label"><i class="fas fa-clock"></i> Actualización:</span>
-                    <span class="info-value">{{ camera.last_update|default:"Nunca" }}</span>
+                    <span class="info-label"><i class="fas fa-cube"></i> Total Objetos:</span>
+                    <span class="info-value" id="total-detections-{{ camera.sanitized_name }}">{{ camera.detection_count }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label"><i class="fas fa-tachometer-alt"></i> FPS:</span>
+                    <span class="info-value" id="info-fps-{{ camera.sanitized_name }}">{{ camera.fps|floatformat:1 }}</span>
+                </div>
+                
+                <!-- Badges de objetos detectados -->
+                <div class="detection-badges" id="badges-{{ camera.sanitized_name }}">
+                    {% if camera.recent_detections %}
+                        {% for det in camera.recent_detections|slice:":5" %}
+                            <span class="detection-badge">{{ det.label }}</span>
+                        {% endfor %}
+                    {% endif %}
                 </div>
             </div>
             
             <div class="camera-actions">
                 <form method="POST" action="{% url 'control_camera_web' camera.sanitized_name %}" style="display: inline; flex: 1;">
                     {% csrf_token %}
-                    {% if camera.status == 'running' %}
+                    {% if camera.running %}
                         <button type="submit" name="action" value="stop" class="action-btn" style="background: #f44336;">
                             <i class="fas fa-stop"></i> Detener
                         </button>
@@ -358,7 +412,7 @@
                     {% endif %}
                 </form>
                 
-                <form method="POST" action="{% url 'remove_camera_web' camera.sanitized_name %}" style="display: inline; flex: 1;">
+                <form method="POST" action="{% url 'remove_camera_view' camera.sanitized_name %}" style="display: inline; flex: 1;">
                     {% csrf_token %}
                     <button type="submit" class="action-btn" style="background: #ff9800;" 
                             onclick="return confirm('¿Eliminar cámara {{ camera.original_name }}?')">
@@ -372,44 +426,74 @@
             <i class="fas fa-video-slash" style="font-size: 5rem; opacity: 0.3; margin-bottom: 20px;"></i>
             <h3>No hay cámaras configuradas</h3>
             <p>Agrega tu primera cámara usando el formulario superior</p>
+            <small style="display: block; margin-top: 10px;">
+                Ejemplos: YouTube Live, ESP32-CAM (192.168.x.x:81/stream), Cámaras IP (rtsp://...)
+            </small>
         </div>
         {% endfor %}
     </div>
 
     <script>
-        // Auto-refresh frames cada 1 segundo para cámaras activas
-        function setupAutoRefresh() {
-            {% for camera in cameras %}
-            {% if camera.status == 'running' %}
-            setInterval(function() {
-                const img = document.getElementById('frame-{{ camera.sanitized_name }}');
-                if (img) {
-                    const timestamp = new Date().getTime();
-                    img.src = '/api/stream/{{ camera.sanitized_name }}/?t=' + timestamp;
-                }
-            }, 1000);
-            {% endif %}
-            {% endfor %}
+        // Función para manejar errores de carga de imagen
+        function handleError(cameraId, img) {
+            console.log('Error cargando stream:', cameraId);
+            img.style.opacity = '0.5';
+            setTimeout(() => {
+                const timestamp = new Date().getTime();
+                img.src = '{% url "video_feed" "CAMERA_ID" %}'.replace('CAMERA_ID', cameraId) + '?t=' + timestamp;
+                img.style.opacity = '1';
+            }, 3000);
         }
         
-        function handleError(cameraId) {
-            const img = document.getElementById('frame-' + cameraId);
-            if (img) {
-                img.style.opacity = '0.5';
-                setTimeout(() => {
-                    img.src = '/api/stream/' + cameraId + '/?t=' + new Date().getTime();
-                }, 3000);
-            }
-        }
+        // Actualizar estadísticas cada 2 segundos para cámaras activas
+        {% for camera in cameras %}
+        {% if camera.running %}
+        setInterval(function() {
+            fetch('/api/cameras/{{ camera.sanitized_name }}/stats/')
+                .then(response => response.json())
+                .then(data => {
+                    // Actualizar contador de personas (badge y info)
+                    const countBadge = document.getElementById('count-{{ camera.sanitized_name }}');
+                    const countInfo = document.getElementById('info-count-{{ camera.sanitized_name }}');
+                    if (countBadge) countBadge.textContent = data.person_count || 0;
+                    if (countInfo) countInfo.textContent = data.person_count || 0;
+                    
+                    // Actualizar FPS (badge y info)
+                    const fpsBadge = document.getElementById('fps-{{ camera.sanitized_name }}');
+                    const fpsInfo = document.getElementById('info-fps-{{ camera.sanitized_name }}');
+                    if (fpsBadge) fpsBadge.textContent = (data.fps || 0).toFixed(1);
+                    if (fpsInfo) fpsInfo.textContent = (data.fps || 0).toFixed(1);
+                    
+                    // Actualizar total de objetos
+                    const totalDet = document.getElementById('total-detections-{{ camera.sanitized_name }}');
+                    if (totalDet) totalDet.textContent = data.total_detections || 0;
+                    
+                    // Actualizar badges de objetos detectados
+                    const badgesContainer = document.getElementById('badges-{{ camera.sanitized_name }}');
+                    if (badgesContainer && data.object_counts) {
+                        let badgesHTML = '';
+                        for (const [label, count] of Object.entries(data.object_counts)) {
+                            badgesHTML += `<span class="detection-badge">${label}: ${count}</span>`;
+                        }
+                        badgesContainer.innerHTML = badgesHTML;
+                    }
+                    
+                    console.log('Stats updated for {{ camera.sanitized_name }}:', data);
+                })
+                .catch(err => console.error('Error fetching stats:', err));
+        }, 2000); // Actualizar cada 2 segundos
+        {% endif %}
+        {% endfor %}
         
         // Ocultar mensajes después de 5 segundos
         setTimeout(function() {
             document.querySelectorAll('.message').forEach(function(msg) {
-                msg.style.display = 'none';
+                msg.style.opacity = '0';
+                setTimeout(() => msg.style.display = 'none', 300);
             });
         }, 5000);
         
-        // Auto-refresh de la página cada 5 segundos si hay cámaras en "starting"
+        // Auto-reload si hay cámaras en "starting"
         {% for camera in cameras %}
         {% if camera.status == 'starting' %}
         setTimeout(function() {
@@ -418,680 +502,134 @@
         {% endif %}
         {% endfor %}
         
-        // Iniciar auto-refresh cuando cargue la página
-        document.addEventListener('DOMContentLoaded', setupAutoRefresh);
+        console.log('✅ Dashboard YOLO con streaming en tiempo real activado');
+        console.log('📹 Streaming con bounding boxes visible');
+        console.log('🔄 Actualización automática cada 2 segundos');
     </script>
 </body>
-</html>
-```
+<!-- ============================================
+     PARCHE PARA STREAMING Y AUTO-UPDATE
+     Agregar esto justo ANTES de </body>
+     ============================================ -->
 
----
+<script>
+// ============================================
+// STREAMING Y AUTO-ACTUALIZACIÓN
+// ============================================
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema YOLO - Detección en Vivo</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* ... (mantén todos los estilos existentes) ... */
+// 1. Cambiar todas las imágenes para que usen streaming
+document.addEventListener('DOMContentLoaded', function() {
+    {% for camera in cameras %}
+    {% if camera.running %}
+    
+    // Crear o actualizar imagen de streaming
+    const videoContainer = document.querySelector('#camera-{{ camera.sanitized_name }} .video-container');
+    if (videoContainer) {
+        // Limpiar contenido
+        videoContainer.innerHTML = '';
         
-        /* AÑADE ESTOS ESTILOS NUEVOS */
-        .view-controls {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            display: flex;
-            gap: 10px;
-            z-index: 20;
-        }
-        
-        .view-btn {
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-            backdrop-filter: blur(5px);
-        }
-        
-        .view-btn:hover {
-            background: rgba(0, 0, 0, 0.9);
-            transform: scale(1.1);
-        }
-        
-        .view-btn.active {
-            background: #4fc3f7;
-        }
-        
-        .detections-panel {
-            max-height: 300px;
-            overflow-y: auto;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.2);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .detections-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .detection-item {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 10px;
-            border-left: 4px solid #4caf50;
-        }
-        
-        .detection-item:nth-child(1) {
-            border-left-color: #ff9800;
-            animation: highlight 2s ease;
-        }
-        
-        @keyframes highlight {
-            0% { background: rgba(255, 152, 0, 0.3); }
-            100% { background: rgba(255, 255, 255, 0.05); }
-        }
-        
-        .detection-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .detection-id {
-            font-weight: bold;
-            color: #4fc3f7;
-        }
-        
-        .detection-time {
-            font-size: 0.8em;
-            color: #888;
-        }
-        
-        .detection-details {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            font-size: 0.9em;
-        }
-        
-        .confidence-high { color: #4caf50; }
-        .confidence-medium { color: #ff9800; }
-        .confidence-low { color: #f44336; }
-        
-        .bbox-visual {
-            height: 4px;
-            background: linear-gradient(90deg, #4caf50, transparent);
-            margin-top: 8px;
-            border-radius: 2px;
-            position: relative;
-        }
-        
-        .bbox-visual::after {
-            content: '';
-            position: absolute;
-            top: -3px;
-            width: 10px;
-            height: 10px;
-            background: #4caf50;
-            border-radius: 50%;
-            animation: slide 2s infinite;
-        }
-        
-        @keyframes slide {
-            0% { left: 0%; }
-            50% { left: 100%; }
-            100% { left: 0%; }
-        }
-        
-        /* Nueva sección para estadísticas */
-        .stats-bar {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .stat-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin: 10px 0;
-            background: linear-gradient(45deg, #4fc3f7, #29b6f6);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-        
-        .stat-label {
-            font-size: 0.9rem;
-            color: #bbdefb;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1 class="welcome">🤖 Detección YOLO en Tiempo Real - Hola, {{ user.username }}!</h1>
-        <form method="POST" action="{% url 'logout_view' %}" style="display: inline;">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger">
-                <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-            </button>
-        </form>
-    </div>
-
-    {% if messages %}
-        {% for message in messages %}
-            <div class="message {{ message.tags }}">
-                <i class="fas fa-{{ message.tags == 'success' and 'check-circle' or 'exclamation-circle' }}"></i>
-                {{ message }}
-            </div>
-        {% endfor %}
-    {% endif %}
-
-    <!-- NUEVO: Panel de estadísticas -->
-    <div class="stats-bar">
-        <div class="stat-card">
-            <i class="fas fa-video"></i>
-            <div class="stat-value" id="total-cameras">{{ cameras|length }}</div>
-            <div class="stat-label">Cámaras Totales</div>
-        </div>
-        <div class="stat-card">
-            <i class="fas fa-users"></i>
-            <div class="stat-value" id="total-persons">
-                {% with total=0 %}
-                    {% for camera in cameras %}
-                        {% widthratio camera.person_count 1 1 as count %}
-                        {{ count|add:total }}
-                    {% endfor %}
-                {% endwith %}
-            </div>
-            <div class="stat-label">Personas Detectadas</div>
-        </div>
-        <div class="stat-card">
-            <i class="fas fa-broadcast-tower"></i>
-            <div class="stat-value" id="active-streams">
-                {% with active=0 %}
-                    {% for camera in cameras %}
-                        {% if camera.status == 'running' %}
-                            {{ active|add:1 }}
-                        {% endif %}
-                    {% endfor %}
-                {% endwith %}
-            </div>
-            <div class="stat-label">Streams Activos</div>
-        </div>
-        <div class="stat-card">
-            <i class="fas fa-microchip"></i>
-            <div class="stat-value" id="yolo-status">ON</div>
-            <div class="stat-label">YOLO Activo</div>
-        </div>
-    </div>
-
-    <div class="control-panel">
-        <h2><i class="fas fa-video-plus"></i> Agregar Cámara YouTube</h2>
-        <form method="POST" action="{% url 'add_camera_web' %}">
-            {% csrf_token %}
-            <div class="form-grid">
-                <input type="text" name="camera_name" class="form-control" 
-                       placeholder="Nombre (ej: Tokyo Live)" required>
-                <input type="text" name="stream_url" class="form-control" 
-                       placeholder="URL de YouTube" 
-                       value="https://www.youtube.com/watch?v=DjdUEyjx8GM">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Agregar
-                </button>
-            </div>
-        </form>
-        
-        <div style="margin-top: 15px;">
-            <form method="POST" action="{% url 'control_all_web' %}" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" name="action" value="start" class="btn btn-success">
-                    <i class="fas fa-play"></i> Iniciar Todas
-                </button>
-                <button type="submit" name="action" value="stop" class="btn btn-danger">
-                    <i class="fas fa-stop"></i> Detener Todas
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <div class="cameras-grid">
-        {% for camera in cameras %}
-        <div class="camera-card" id="camera-{{ camera.sanitized_name }}">
-            <div class="camera-header">
-                <div class="camera-title">
-                    <i class="fas fa-video"></i> {{ camera.original_name }}
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span class="camera-status status-{{ camera.status }}">
-                        {{ camera.status|upper }}
-                    </span>
-                    <span style="font-size: 0.8rem; color: #888;">
-                        {% if camera.video_id %}
-                            ID: {{ camera.video_id }}
-                        {% endif %}
-                    </span>
-                </div>
-            </div>
-            
-            <div class="video-container">
-                {% if camera.status == 'running' %}
-                    <!-- IMAGEN CON BOUNDING BOXES -->
-                    <img src="{% url 'video-feed' camera.sanitized_name %}" 
-                         class="video-frame" 
-                         id="frame-{{ camera.sanitized_name }}"
-                         alt="Stream {{ camera.original_name }}"
-                         onerror="handleError('{{ camera.sanitized_name }}', this)">
-                    
-                    <div class="person-count-badge">
-                        <i class="fas fa-users"></i>
-                        <span id="count-{{ camera.sanitized_name }}">{{ camera.person_count }}</span>
-                        <small style="font-size: 0.8rem; margin-left: 5px;">personas</small>
-                    </div>
-                    
-                    <!-- CONTROLES DE VISTA -->
-                    <div class="view-controls">
-                        <button class="view-btn" title="Vista Original" 
-                                onclick="switchView('{{ camera.sanitized_name }}', 'normal')">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="view-btn active" title="Vista con Bounding Boxes" 
-                                onclick="switchView('{{ camera.sanitized_name }}', 'boxes')">
-                            <i class="fas fa-square"></i>
-                        </button>
-                        <button class="view-btn" title="Refrescar" 
-                                onclick="refreshFrame('{{ camera.sanitized_name }}')">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                    </div>
-                {% else %}
-                    <div class="video-placeholder">
-                        <i class="fas fa-video-slash"></i>
-                        <p>Cámara {{ camera.status }}</p>
-                        {% if camera.status == 'starting' %}
-                            <p class="loading" style="margin-top: 10px;">
-                                <i class="fas fa-spinner fa-spin"></i> Conectando...
-                            </p>
-                        {% endif %}
-                    </div>
-                {% endif %}
-            </div>
-            
-            <!-- NUEVO: Panel de detecciones en tiempo real -->
-            <div class="detections-panel" id="detections-{{ camera.sanitized_name }}">
-                <div class="detections-header">
-                    <h4><i class="fas fa-list"></i> Detecciones Recientes</h4>
-                    <span id="detection-count-{{ camera.sanitized_name }}" 
-                          style="background: #4caf50; color: white; padding: 3px 10px; border-radius: 12px;">
-                        {{ camera.recent_detections|length|default:0 }}
-                    </span>
-                </div>
-                
-                {% if camera.recent_detections %}
-                    {% for detection in camera.recent_detections|slice:":5" %}
-                    <div class="detection-item">
-                        <div class="detection-header">
-                            <span class="detection-id">Persona #{{ forloop.counter }}</span>
-                            <span class="detection-time" title="{{ detection.timestamp }}">
-                                {% now "H:i:s" as now_time %}
-                                {{ detection.timestamp|time|default:"Recién" }}
-                            </span>
-                        </div>
-                        <div class="detection-details">
-                            <div>
-                                <small>Confianza:</small>
-                                <div class="confidence-{{ detection.confidence|default:0.8|floatformat:2|cut:'0.'|add:'0'|divisibleby:'high'|yesno:'high,medium,low' }}">
-                                    {{ detection.confidence|default:0.8|floatformat:3 }}%
-                                </div>
-                            </div>
-                            <div>
-                                <small>Posición:</small>
-                                <div>
-                                    {% if detection.position %}
-                                        ({{ detection.position.x|floatformat:0 }}, {{ detection.position.y|floatformat:0 }})
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bbox-visual"></div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div style="text-align: center; padding: 20px; color: #888;">
-                        <i class="fas fa-user-slash"></i>
-                        <p>No se han detectado personas aún</p>
-                    </div>
-                {% endif %}
-            </div>
-            
-            <div class="camera-info">
-                <div class="info-row">
-                    <span class="info-label"><i class="fas fa-hashtag"></i> ID:</span>
-                    <span class="info-value">{{ camera.video_id|default:"N/A" }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label"><i class="fas fa-users"></i> Detectadas:</span>
-                    <span class="info-value">{{ camera.person_count }} personas</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label"><i class="fas fa-clock"></i> Actualización:</span>
-                    <span class="info-value">{{ camera.last_update|default:"Nunca" }}</span>
-                </div>
-                {% if camera.detection_stats %}
-                <div class="info-row">
-                    <span class="info-label"><i class="fas fa-chart-bar"></i> Estadísticas:</span>
-                    <span class="info-value">
-                        {{ camera.detection_stats.total_detections }} detecciones
-                    </span>
-                </div>
-                {% endif %}
-            </div>
-            
-            <div class="camera-actions">
-                <form method="POST" action="{% url 'control_camera_web' camera.sanitized_name %}" style="display: inline; flex: 1;">
-                    {% csrf_token %}
-                    {% if camera.status == 'running' %}
-                        <button type="submit" name="action" value="stop" class="action-btn" style="background: #f44336;">
-                            <i class="fas fa-stop"></i> Detener
-                        </button>
-                    {% else %}
-                        <button type="submit" name="action" value="start" class="action-btn" style="background: #4caf50;">
-                            <i class="fas fa-play"></i> Iniciar
-                        </button>
-                    {% endif %}
-                </form>
-                
-                <!-- Botón para actualizar detecciones -->
-                <button class="action-btn" style="background: #2196f3;" 
-                        onclick="loadDetections('{{ camera.sanitized_name }}')">
-                    <i class="fas fa-sync-alt"></i> Actualizar
-                </button>
-                
-                <form method="POST" action="{% url 'remove_camera_web' camera.sanitized_name %}" style="display: inline; flex: 1;">
-                    {% csrf_token %}
-                    <button type="submit" class="action-btn" style="background: #ff9800;" 
-                            onclick="return confirm('¿Eliminar cámara {{ camera.original_name }}?')">
-                        <i class="fas fa-trash"></i> Eliminar
-                    </button>
-                </form>
-            </div>
-        </div>
-        {% empty %}
-        <div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: #888;">
-            <i class="fas fa-video-slash" style="font-size: 5rem; opacity: 0.3; margin-bottom: 20px;"></i>
-            <h3>No hay cámaras configuradas</h3>
-            <p>Agrega tu primera cámara usando el formulario superior</p>
-        </div>
-        {% endfor %}
-    </div>
-
-    <script>
-        // Variables globales
-        let viewMode = {}; // 'normal' o 'boxes'
-        let detectionIntervals = {};
-        
-        // Función para cambiar entre vista normal y con bounding boxes
-        function switchView(cameraId, mode) {
-            const img = document.getElementById(`frame-${cameraId}`);
-            if (!img) return;
-            
-            // Actualizar botones
-            const btns = document.querySelectorAll(`#camera-${cameraId} .view-btn`);
-            btns.forEach(btn => btn.classList.remove('active'));
-            
-            if (mode === 'boxes') {
-                // Vista CON bounding boxes (usando la nueva API)
-                img.src = `{% url 'video-feed' 'CAMERA_ID' %}`.replace('CAMERA_ID', cameraId);
-                document.querySelector(`#camera-${cameraId} .view-btn:nth-child(2)`).classList.add('active');
-                viewMode[cameraId] = 'boxes';
-            } else {
-                // Vista SIN bounding boxes (frame original)
-                img.src = `/api/cameras/${cameraId}/frame/?t=${Date.now()}`;
-                document.querySelector(`#camera-${cameraId} .view-btn:nth-child(1)`).classList.add('active');
-                viewMode[cameraId] = 'normal';
-            }
-        }
-        
-        // Función para refrescar frame
-        function refreshFrame(cameraId) {
-            const img = document.getElementById(`frame-${cameraId}`);
-            if (img) {
-                const currentMode = viewMode[cameraId] || 'boxes';
-                if (currentMode === 'boxes') {
-                    img.src = `{% url 'video-feed' 'CAMERA_ID' %}`.replace('CAMERA_ID', cameraId) + `?t=${Date.now()}`;
-                } else {
-                    img.src = `/api/cameras/${cameraId}/frame/?t=${Date.now()}`;
-                }
-                
-                // Efecto visual
-                img.style.opacity = '0.7';
-                setTimeout(() => {
-                    img.style.opacity = '1';
-                }, 100);
-                
-                // También actualizar estadísticas
-                updateCameraStats(cameraId);
-            }
-        }
-        
-        // Función para cargar detecciones de una cámara
-        async function loadDetections(cameraId) {
-            try {
-                const response = await fetch(`/api/cameras/${cameraId}/detections/?limit=10`);
-                if (!response.ok) throw new Error('Error al cargar detecciones');
-                
-                const data = await response.json();
-                updateDetectionsUI(cameraId, data.detections);
-                
-                // Actualizar contador
-                const countElement = document.getElementById(`count-${cameraId}`);
-                if (countElement) {
-                    countElement.textContent = data.detections.length;
-                }
-                
-            } catch (error) {
-                console.error(`Error cargando detecciones para ${cameraId}:`, error);
-            }
-        }
-        
-        // Función para actualizar la UI de detecciones
-        function updateDetectionsUI(cameraId, detections) {
-            const container = document.getElementById(`detections-${cameraId}`);
-            if (!container) return;
-            
-            const countElement = document.getElementById(`detection-count-${cameraId}`);
-            if (countElement) {
-                countElement.textContent = detections.length;
-            }
-            
-            // Si no hay detecciones
-            if (!detections || detections.length === 0) {
-                container.innerHTML = `
-                    <div class="detections-header">
-                        <h4><i class="fas fa-list"></i> Detecciones Recientes</h4>
-                        <span style="background: #888; color: white; padding: 3px 10px; border-radius: 12px;">0</span>
-                    </div>
-                    <div style="text-align: center; padding: 20px; color: #888;">
-                        <i class="fas fa-user-slash"></i>
-                        <p>No se han detectado personas aún</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Generar HTML para las detecciones
-            let html = `
-                <div class="detections-header">
-                    <h4><i class="fas fa-list"></i> Detecciones Recientes</h4>
-                    <span style="background: #4caf50; color: white; padding: 3px 10px; border-radius: 12px;">
-                        ${detections.length}
-                    </span>
-                </div>
-            `;
-            
-            detections.slice(0, 5).forEach((det, index) => {
-                const timeAgo = getTimeAgo(det.timestamp);
-                const confidence = det.confidence || 0.8;
-                let confidenceClass = 'confidence-high';
-                
-                if (confidence < 0.7) confidenceClass = 'confidence-medium';
-                if (confidence < 0.5) confidenceClass = 'confidence-low';
-                
-                html += `
-                <div class="detection-item ${index === 0 ? 'new' : ''}">
-                    <div class="detection-header">
-                        <span class="detection-id">Persona #${index + 1}</span>
-                        <span class="detection-time" title="${det.timestamp}">${timeAgo}</span>
-                    </div>
-                    <div class="detection-details">
-                        <div>
-                            <small>Confianza:</small>
-                            <div class="${confidenceClass}">
-                                ${(confidence * 100).toFixed(1)}%
-                            </div>
-                        </div>
-                        <div>
-                            <small>Posición:</small>
-                            <div>
-                                ${det.position ? 
-                                    `(${det.position.x.toFixed(0)}, ${det.position.y.toFixed(0)})` : 
-                                    'N/A'}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bbox-visual"></div>
-                </div>`;
-            });
-            
-            container.innerHTML = html;
-        }
-        
-        // Función para calcular "hace X tiempo"
-        function getTimeAgo(timestamp) {
-            if (!timestamp) return 'Recién';
-            
-            const now = new Date();
-            const past = new Date(timestamp);
-            const diffMs = now - past;
-            const diffSec = Math.floor(diffMs / 1000);
-            const diffMin = Math.floor(diffSec / 60);
-            const diffHour = Math.floor(diffMin / 60);
-            
-            if (diffSec < 60) return 'hace unos segundos';
-            if (diffMin < 60) return `hace ${diffMin} min`;
-            if (diffHour < 24) return `hace ${diffHour} h`;
-            return past.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        }
-        
-        // Función para actualizar estadísticas de cámara
-        async function updateCameraStats(cameraId) {
-            try {
-                const response = await fetch(`/api/cameras/${cameraId}/status/`);
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    // Actualizar contador de personas
-                    const countElement = document.getElementById(`count-${cameraId}`);
-                    if (countElement) {
-                        countElement.textContent = data.person_count || 0;
-                    }
-                    
-                    // Actualizar estado
-                    const statusElement = document.querySelector(`#camera-${cameraId} .camera-status`);
-                    if (statusElement && data.status) {
-                        statusElement.className = `camera-status status-${data.status}`;
-                        statusElement.textContent = data.status.toUpperCase();
-                    }
-                }
-            } catch (error) {
-                console.error(`Error actualizando stats para ${cameraId}:`, error);
-            }
-        }
-        
-        // Función para manejar errores de imagen
-        function handleError(cameraId, img) {
-            if (img) {
-                img.style.opacity = '0.5';
-                setTimeout(() => {
-                    refreshFrame(cameraId);
-                    img.style.opacity = '1';
-                }, 3000);
-            }
-        }
-        
-        // Configurar auto-refresh
-        function setupAutoRefresh() {
-            {% for camera in cameras %}
-            {% if camera.status == 'running' %}
-            // Auto-refresh del frame cada 1 segundo
-            setInterval(() => refreshFrame('{{ camera.sanitized_name }}'), 1000);
-            
-            // Auto-refresh de detecciones cada 3 segundos
-            detectionIntervals['{{ camera.sanitized_name }}'] = setInterval(() => {
-                loadDetections('{{ camera.sanitized_name }}');
+        // Crear imagen de streaming CON bounding boxes
+        const img = document.createElement('img');
+        img.src = '/stream/{{ camera.sanitized_name }}/';
+        img.className = 'video-frame';
+        img.id = 'frame-{{ camera.sanitized_name }}';
+        img.alt = 'Stream {{ camera.original_name }}';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'contain';
+        img.onerror = function() {
+            console.error('Error cargando stream {{ camera.sanitized_name }}');
+            this.style.opacity = '0.5';
+            setTimeout(() => {
+                this.src = '/stream/{{ camera.sanitized_name }}/?t=' + Date.now();
+                this.style.opacity = '1';
             }, 3000);
-            {% endif %}
-            {% endfor %}
-        }
+        };
         
-        // Ocultar mensajes después de 5 segundos
-        setTimeout(() => {
-            document.querySelectorAll('.message').forEach(msg => {
-                msg.style.display = 'none';
+        // Badge de personas
+        const personBadge = document.createElement('div');
+        personBadge.style.position = 'absolute';
+        personBadge.style.top = '10px';
+        personBadge.style.right = '10px';
+        personBadge.style.background = 'rgba(0,0,0,0.8)';
+        personBadge.style.color = 'white';
+        personBadge.style.padding = '10px 20px';
+        personBadge.style.borderRadius = '25px';
+        personBadge.style.fontSize = '1.2rem';
+        personBadge.style.fontWeight = 'bold';
+        personBadge.style.border = '2px solid #4caf50';
+        personBadge.style.zIndex = '10';
+        personBadge.innerHTML = '<i class="fas fa-users"></i> <span id="count-{{ camera.sanitized_name }}">{{ camera.person_count }}</span> <small>personas</small>';
+        
+        // Badge de FPS
+        const fpsBadge = document.createElement('div');
+        fpsBadge.style.position = 'absolute';
+        fpsBadge.style.top = '10px';
+        fpsBadge.style.left = '10px';
+        fpsBadge.style.background = 'rgba(0,0,0,0.8)';
+        fpsBadge.style.color = '#4fc3f7';
+        fpsBadge.style.padding = '8px 15px';
+        fpsBadge.style.borderRadius = '20px';
+        fpsBadge.style.fontSize = '0.9rem';
+        fpsBadge.style.fontWeight = 'bold';
+        fpsBadge.style.border = '2px solid #4fc3f7';
+        fpsBadge.style.zIndex = '10';
+        fpsBadge.innerHTML = '<i class="fas fa-tachometer-alt"></i> <span id="fps-{{ camera.sanitized_name }}">{{ camera.fps|floatformat:1 }}</span> FPS';
+        
+        // Agregar todo al container
+        videoContainer.style.position = 'relative';
+        videoContainer.appendChild(img);
+        videoContainer.appendChild(personBadge);
+        videoContainer.appendChild(fpsBadge);
+        
+        console.log('✅ Stream configurado para {{ camera.sanitized_name }}');
+    }
+    
+    // 2. Auto-actualizar estadísticas cada 2 segundos
+    setInterval(function() {
+        fetch('/api/cameras/{{ camera.sanitized_name }}/stats/')
+            .then(response => response.json())
+            .then(data => {
+                // Actualizar contador de personas en badge
+                const countBadge = document.getElementById('count-{{ camera.sanitized_name }}');
+                if (countBadge) {
+                    countBadge.textContent = data.person_count || 0;
+                }
+                
+                // Actualizar FPS en badge
+                const fpsBadge = document.getElementById('fps-{{ camera.sanitized_name }}');
+                if (fpsBadge) {
+                    fpsBadge.textContent = (data.fps || 0).toFixed(1);
+                }
+                
+                // Buscar y actualizar en info panel también
+                const cardInfo = document.querySelector('#camera-{{ camera.sanitized_name }} .camera-info');
+                if (cardInfo) {
+                    // Actualizar "Personas detectadas"
+                    const personInfo = cardInfo.querySelector('.info-row:nth-child(2) .info-value');
+                    if (personInfo) {
+                        personInfo.textContent = data.person_count || 0;
+                    }
+                    
+                    // Actualizar FPS
+                    const fpsInfo = cardInfo.querySelectorAll('.info-value')[2];
+                    if (fpsInfo) {
+                        fpsInfo.textContent = (data.fps || 0).toFixed(1);
+                    }
+                }
+                
+                console.log('📊 Stats actualizados {{ camera.sanitized_name }}:', data.person_count, 'personas,', data.fps.toFixed(1), 'FPS');
+            })
+            .catch(err => {
+                console.error('❌ Error actualizando stats {{ camera.sanitized_name }}:', err);
             });
-        }, 5000);
-        
-        // Iniciar cuando cargue la página
-        document.addEventListener('DOMContentLoaded', () => {
-            setupAutoRefresh();
-            
-            // Configurar vista por defecto con bounding boxes
-            {% for camera in cameras %}
-            {% if camera.status == 'running' %}
-            switchView('{{ camera.sanitized_name }}', 'boxes');
-            {% endif %}
-            {% endfor %}
-            
-            // Auto-refresh de la página cada 10 segundos para cámaras starting
-            {% for camera in cameras %}
-            {% if camera.status == 'starting' %}
-            setTimeout(() => window.location.reload(), 10000);
-            {% endif %}
-            {% endfor %}
-        });
-        
-        // Limpiar intervalos al salir
-        window.addEventListener('beforeunload', () => {
-            Object.values(detectionIntervals).forEach(clearInterval);
-        });
-    </script>
-</body>
+    }, 2000); // Cada 2 segundos
+    
+    {% endif %}
+    {% endfor %}
+    
+    console.log('🚀 Sistema de streaming en tiempo real activado');
+});
+
+</script>
 </html>

@@ -27,4 +27,8 @@ urlpatterns = [
     path('api/cameras/<str:camera_id>/frame/', views.camera_frame_view, name='camera_frame_view'),
     path('api/cameras/<str:camera_id>/remove/', views.remove_camera_view, name='remove_camera_view'),
     path('api/cameras/<str:camera_id>/detections/', views.camera_detections_view, name='camera_detections_view'),
+    
+    # NUEVAS - Streaming con YOLO bounding boxes
+    path('stream/<str:camera_id>/', views.video_feed, name='video_feed'),
+    path('api/cameras/<str:camera_id>/stats/', views.camera_stats_api, name='camera_stats_api'),
 ]

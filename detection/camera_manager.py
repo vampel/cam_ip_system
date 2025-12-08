@@ -1,11 +1,6 @@
-<<<<<<< HEAD
-# detection/camera_manager.py
-=======
-# detection/camera_manager.py - VERSIÓN SIN EMULACIÓN
->>>>>>> 94a56a6 (yolo activo!)
+# detection/camera_manager.py - VERSIÓN COMPLETA CON YOUTUBE
 import threading
 import time
-import io
 from datetime import datetime
 import traceback
 
@@ -15,62 +10,39 @@ except Exception:
     cv2 = None
 
 import numpy as np
-<<<<<<< HEAD
-import random
-=======
->>>>>>> 94a56a6 (yolo activo!)
 import logging
 
 logger = logging.getLogger(__name__)
 
-<<<<<<< HEAD
-# Optional: if ultralytics is installed, we'll try to use it
-DETECTION_ENABLED = False
-YOLO_MODEL = None
-YOLO_MODEL_PATH = "yolov8n.pt"  # default; asegúrate que exista o se descargará por ultralytics
-=======
 # YOLO detection - REAL, NO MOCK
 DETECTION_ENABLED = False
 YOLO_MODEL = None
 YOLO_MODEL_PATH = "yolov8n.pt"
->>>>>>> 94a56a6 (yolo activo!)
 
 try:
     from ultralytics import YOLO
     try:
         YOLO_MODEL = YOLO(YOLO_MODEL_PATH)
         DETECTION_ENABLED = True
-<<<<<<< HEAD
-        logger.info("Ultralytics YOLO cargado correctamente.")
+        print("[OK] Ultralytics YOLO cargado correctamente - DETECCION REAL HABILITADA")
     except Exception as e:
-        logger.warning(f"No se pudo cargar el modelo YOLO: {e}\nSe trabajará con detecciones mock.")
+        print(f"[ERROR] No se pudo cargar el modelo YOLO: {e}")
+        print("[WARNING] INSTALA YOLO PARA USAR DETECCIÓN REAL")
         DETECTION_ENABLED = False
 except Exception:
-    logger.info("ultralytics no está instalado; usando detecciones mock.")
-=======
-        logger.info("✅ Ultralytics YOLO cargado correctamente - DETECCIÓN REAL HABILITADA")
-    except Exception as e:
-        logger.error(f"❌ No se pudo cargar el modelo YOLO: {e}")
-        logger.error("⚠️ INSTALA YOLO PARA USAR DETECCIÓN REAL")
-        DETECTION_ENABLED = False
-except Exception:
-    logger.error("❌ ultralytics no está instalado")
-    logger.error("⚠️ Instala con: pip install ultralytics")
->>>>>>> 94a56a6 (yolo activo!)
+    print("[ERROR] ultralytics no está instalado")
+    print("[WARNING] Instala con: pip install ultralytics")
     DETECTION_ENABLED = False
 
 
 class Camera:
     def __init__(self, camera_id: str, source: str, detection_interval: float = 1.0):
         """
-<<<<<<< HEAD
-        source: ruta RTSP, HTTP, archivo local o Youtube/stream (si es compatible con VideoCapture)
-=======
-        source: ruta RTSP, HTTP, archivo local o stream compatible con VideoCapture
->>>>>>> 94a56a6 (yolo activo!)
+        source: ruta RTSP, HTTP, archivo local, YouTube URL, o stream compatible con VideoCapture
         """
         self.camera_id = camera_id
         self.source = source
+        self.original_source = source  # Guardar URL original
         self.detection_interval = detection_interval
         self._capture = None
         self._thread = None
@@ -78,11 +50,7 @@ class Camera:
         self._lock = threading.RLock()
         self.last_frame = None          # JPEG bytes
         self.last_frame_ts = None
-<<<<<<< HEAD
-        self.last_detections = []       # list of detection dicts
-=======
         self.last_detections = []       # SOLO detecciones REALES de YOLO
->>>>>>> 94a56a6 (yolo activo!)
         self.last_error = None
         self.fps = 0.0
         self._last_detection_time = 0.0
@@ -102,15 +70,8 @@ class Camera:
             if not self._running:
                 return True
             self._running = False
-<<<<<<< HEAD
-        # wait for thread to finish
         if self._thread:
             self._thread.join(timeout=2.0)
-        # release capture
-=======
-        if self._thread:
-            self._thread.join(timeout=2.0)
->>>>>>> 94a56a6 (yolo activo!)
         if self._capture:
             try:
                 self._capture.release()
@@ -120,43 +81,123 @@ class Camera:
         logger.info(f"Camera {self.camera_id} stopped.")
         return True
 
+    def _convert_youtube_url(self, url: str) -> str:
+        """
+        Convierte URL de YouTube a stream directo usando yt-dlp
+        Soporta múltiples estrategias de cliente para mayor compatibilidad
+        """
+        if 'youtube.com' not in url and 'youtu.be' not in url:
+            return url
+        
+        try:
+            import yt_dlp
+            
+            print(f"[{self.camera_id}] [YOUTUBE] Extrayendo stream de: {url}")
+            
+            # Múltiples estrategias de cliente
+            configs = [
+                {
+                    'name': 'Android client',
+                    'opts': {
+                        'format': 'best[height<=480]',
+                        'quiet': True,
+                        'no_warnings': True,
+                        'extractor_args': {'youtube': {'player_client': ['android']}},
+                    }
+                },
+                {
+                    'name': 'iOS client', 
+                    'opts': {
+                        'format': 'best[height<=480]',
+                        'quiet': True,
+                        'no_warnings': True,
+                        'extractor_args': {'youtube': {'player_client': ['ios']}},
+                    }
+                },
+                {
+                    'name': 'Web client',
+                    'opts': {
+                        'format': 'best[height<=480]',
+                        'quiet': True,
+                        'no_warnings': True,
+                        'extractor_args': {'youtube': {'player_client': ['web']}},
+                    }
+                },
+                {
+                    'name': 'Default',
+                    'opts': {
+                        'format': 'best[height<=480]',
+                        'quiet': True,
+                        'no_warnings': True,
+                    }
+                }
+            ]
+            
+            for config in configs:
+                try:
+                    print(f"[{self.camera_id}] [YOUTUBE] Intentando con {config['name']}...")
+                    with yt_dlp.YoutubeDL(config['opts']) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        stream_url = info.get('url')
+                        if stream_url:
+                            print(f"[{self.camera_id}] [YOUTUBE] ✅ Stream obtenido con {config['name']}")
+                            return stream_url
+                except Exception as e:
+                    print(f"[{self.camera_id}] [YOUTUBE] ❌ Falló {config['name']}: {e}")
+                    continue
+            
+            print(f"[{self.camera_id}] [YOUTUBE] ❌ Todas las estrategias fallaron")
+            raise RuntimeError("No se pudo extraer stream de YouTube con ninguna estrategia")
+            
+        except ImportError:
+            print(f"[{self.camera_id}] [ERROR] yt-dlp no está instalado")
+            print(f"[{self.camera_id}] [ERROR] Instala con: pip install yt-dlp")
+            raise RuntimeError("yt-dlp no está instalado")
+        except Exception as e:
+            print(f"[{self.camera_id}] [YOUTUBE] Error: {e}")
+            raise
+
     def _open_capture(self):
         if cv2 is None:
             raise RuntimeError("cv2 no disponible. Instala opencv-python(-headless).")
-<<<<<<< HEAD
-        # Try to open capture; allow retries
-        # If source is numeric string, try as index
-=======
         
->>>>>>> 94a56a6 (yolo activo!)
+        # Convertir URL de YouTube si es necesario
+        try:
+            src = self._convert_youtube_url(self.source)
+        except Exception as e:
+            print(f"[{self.camera_id}] [ERROR] No se pudo convertir URL: {e}")
+            raise
+        
         attempts = 0
         while attempts < 3:
             try:
-                src = self.source
-<<<<<<< HEAD
-                # if source looks like an int index
+                # Si es un número, convertir a int
                 if isinstance(src, str) and src.isdigit():
                     src = int(src)
+                
+                print(f"[{self.camera_id}] [CAMERA] Abriendo VideoCapture...")
                 cap = cv2.VideoCapture(src, cv2.CAP_ANY)
-                # small wait for camera to warm
-=======
-                if isinstance(src, str) and src.isdigit():
-                    src = int(src)
-                cap = cv2.VideoCapture(src, cv2.CAP_ANY)
->>>>>>> 94a56a6 (yolo activo!)
-                time.sleep(0.3)
+                time.sleep(0.5)
+                
                 if cap is not None and cap.isOpened():
+                    print(f"[{self.camera_id}] [CAMERA] ✅ VideoCapture abierto correctamente")
                     return cap
                 else:
+                    print(f"[{self.camera_id}] [CAMERA] ❌ VideoCapture no se pudo abrir")
                     try:
                         cap.release()
                     except Exception:
                         pass
-            except Exception:
+            except Exception as e:
+                print(f"[{self.camera_id}] [CAMERA] ❌ Error: {e}")
                 logger.debug("error opening capture", exc_info=True)
+            
             attempts += 1
-            time.sleep(0.5)
-        raise RuntimeError(f"No se pudo abrir VideoCapture para {self.source}")
+            if attempts < 3:
+                print(f"[{self.camera_id}] [CAMERA] Reintentando... ({attempts}/3)")
+                time.sleep(1.0)
+        
+        raise RuntimeError(f"No se pudo abrir VideoCapture después de 3 intentos")
 
     def _loop(self):
         try:
@@ -175,10 +216,6 @@ class Camera:
                 t0 = time.time()
                 ret, frame = self._capture.read()
                 if not ret or frame is None:
-<<<<<<< HEAD
-                    # no frame, try reopen once
-=======
->>>>>>> 94a56a6 (yolo activo!)
                     logger.warning(f"[{self.camera_id}] No frame recibido. Intentando reconectar...")
                     try:
                         self._capture.release()
@@ -195,19 +232,11 @@ class Camera:
                         continue
 
                 frame_count += 1
-<<<<<<< HEAD
-                # update fps roughly
-=======
->>>>>>> 94a56a6 (yolo activo!)
                 elapsed = time.time() - read_start
                 if elapsed > 0:
                     self.fps = frame_count / elapsed
 
-<<<<<<< HEAD
-                # encode to JPEG and save
-=======
                 # Encode to JPEG
->>>>>>> 94a56a6 (yolo activo!)
                 try:
                     _, buf = cv2.imencode('.jpg', frame)
                     jpeg_bytes = buf.tobytes()
@@ -217,11 +246,7 @@ class Camera:
                 except Exception as e:
                     logger.exception(f"[{self.camera_id}] Error al codificar frame JPEG: {e}")
 
-<<<<<<< HEAD
-                # detection (run only every detection_interval)
-=======
                 # DETECCIÓN REAL (solo cada detection_interval)
->>>>>>> 94a56a6 (yolo activo!)
                 now = time.time()
                 if (now - self._last_detection_time) >= self.detection_interval:
                     self._last_detection_time = now
@@ -234,11 +259,6 @@ class Camera:
                         with self._lock:
                             self.last_detections = []
 
-<<<<<<< HEAD
-                # small sleep to avoid tight loop
-                # aim to keep loop responsive but not 100% CPU
-=======
->>>>>>> 94a56a6 (yolo activo!)
                 time.sleep(0.01)
 
             except Exception as e:
@@ -246,10 +266,6 @@ class Camera:
                 self.last_error = str(e)
                 time.sleep(1.0)
 
-<<<<<<< HEAD
-        # cleanup when leaving loop
-=======
->>>>>>> 94a56a6 (yolo activo!)
         try:
             if self._capture:
                 self._capture.release()
@@ -258,68 +274,13 @@ class Camera:
 
     def _run_detection(self, frame):
         """
-<<<<<<< HEAD
-        Ejecuta detección sobre el frame (BGR numpy array).
-        Devuelve lista de detections en formato:
-        [{'id': str, 'label': str, 'confidence': float, 'bbox': [x1,y1,x2,y2]}...]
-        """
-        detections = []
-
-        if DETECTION_ENABLED and YOLO_MODEL is not None:
-            try:
-                # ultralytics expects RGB
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = YOLO_MODEL(rgb)  # quick inference; model handles batching
-                # results may contain multiple frames; we take first
-                for r in results:
-                    boxes = r.boxes
-                    if boxes is None:
-                        continue
-                    for b in boxes:
-                        # depending on ultralytics version, b may have .xyxy, .conf, .cls
-                        try:
-                            xyxy = b.xyxy[0].tolist() if hasattr(b, 'xyxy') else b.xyxy.tolist()
-                        except Exception:
-                            try:
-                                xyxy = list(map(float, b.xyxy))
-                            except Exception:
-                                xyxy = [0, 0, 0, 0]
-                        conf = float(b.conf[0]) if hasattr(b, 'conf') else float(b.conf)
-                        cls = int(b.cls[0]) if hasattr(b, 'cls') else int(b.cls)
-                        label = YOLO_MODEL.names.get(cls, str(cls)) if hasattr(YOLO_MODEL, 'names') else str(cls)
-                        detections.append({
-                            'id': f"{self.camera_id}_{int(time.time()*1000)}_{len(detections)}",
-                            'label': label,
-                            'confidence': round(conf, 4),
-                            'bbox': [int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])],
-                        })
-                return detections
-            except Exception:
-                # fallback to mock below
-                logger.exception(f"[{self.camera_id}] fallo en ultralytics detection, uso mock")
-        # Mock detections if no model
-        h, w = frame.shape[:2] if hasattr(frame, 'shape') else (360, 640)
-        for i in range(random.randint(0, 3)):
-            x1 = random.randint(0, max(0, w - 100))
-            y1 = random.randint(0, max(0, h - 100))
-            x2 = x1 + random.randint(40, 160)
-            y2 = y1 + random.randint(60, 240)
-            detections.append({
-                'id': f"{self.camera_id}_{int(time.time()*1000)}_{i}",
-                'label': random.choice(['person', 'car', 'bicycle']),
-                'confidence': round(0.5 + random.random() * 0.5, 3),
-                'bbox': [x1, y1, min(x2, w-1), min(y2, h-1)]
-            })
-        return detections
-=======
         ⚠️ SOLO DETECCIONES REALES - NO MOCK
         Si YOLO no está disponible, retorna lista vacía
         """
         detections = []
 
         if not DETECTION_ENABLED or YOLO_MODEL is None:
-            logger.warning(f"[{self.camera_id}] ⚠️ YOLO no disponible - NO hay detección")
-            return []  # ← SIN DATOS FALSOS
+            return []
 
         # DETECCIÓN REAL CON YOLO
         try:
@@ -351,32 +312,31 @@ class Camera:
                         'timestamp': datetime.utcnow().isoformat() + "Z"
                     })
             
-            logger.info(f"[{self.camera_id}] ✅ Detección REAL: {len(detections)} objetos encontrados")
+            # LOGS MEJORADOS - Mostrar desglose
+            person_count = sum(1 for d in detections if d.get('label') == 'person')
+            other_count = len(detections) - person_count
+            
+            if detections:
+                print(f"[{self.camera_id}] [OK] Deteccion REAL: {len(detections)} objetos ({person_count} personas, {other_count} otros)")
+            
             return detections
             
         except Exception as e:
-            logger.exception(f"[{self.camera_id}] ❌ Error en YOLO detection: {e}")
-            return []  # ← Si falla, retorna vacío, NO datos falsos
->>>>>>> 94a56a6 (yolo activo!)
+            logger.exception(f"[{self.camera_id}] [ERROR] Error en YOLO detection: {e}")
+            return []
 
 
 class CameraManager:
     def __init__(self):
-<<<<<<< HEAD
-        self.cameras = {}  # camera_id -> Camera
-        self._lock = threading.RLock()
-=======
         self.cameras = {}
         self._lock = threading.RLock()
         
-        # Advertencia si YOLO no está disponible
         if not DETECTION_ENABLED:
             logger.warning("="*60)
-            logger.warning("⚠️  YOLO NO DISPONIBLE - DETECCIÓN DESHABILITADA")
-            logger.warning("⚠️  Instala con: pip install ultralytics")
-            logger.warning("⚠️  Las cámaras capturarán video pero SIN detección")
+            logger.warning("[WARNING] YOLO NO DISPONIBLE - DETECCIÓN DESHABILITADA")
+            logger.warning("[WARNING] Instala con: pip install ultralytics")
+            logger.warning("[WARNING] Las cámaras capturarán video pero SIN detección")
             logger.warning("="*60)
->>>>>>> 94a56a6 (yolo activo!)
 
     def add_camera(self, camera_id: str, source: str) -> bool:
         with self._lock:
@@ -385,11 +345,7 @@ class CameraManager:
                 return False
             cam = Camera(camera_id, source)
             self.cameras[camera_id] = cam
-<<<<<<< HEAD
-            logger.info(f"Cámara añadida: {camera_id} -> {source}")
-=======
-            logger.info(f"📹 Cámara añadida: {camera_id} -> {source}")
->>>>>>> 94a56a6 (yolo activo!)
+            logger.info(f"[CAMERA] Cámara añadida: {camera_id} -> {source}")
             return True
 
     def start_camera(self, camera_id: str) -> bool:
@@ -422,7 +378,6 @@ class CameraManager:
     def get_camera_status(self, camera_id: str):
         cam = self.cameras.get(camera_id)
         if not cam:
-<<<<<<< HEAD
             return None
         with cam._lock:
             return {
@@ -433,34 +388,7 @@ class CameraManager:
                 'last_error': cam.last_error,
                 'fps': round(cam.fps, 2),
                 'detections_count': len(cam.last_detections),
-            }
-
-    def get_camera_frame(self, camera_id: str):
-        cam = self.cameras.get(camera_id)
-        if not cam:
-            return None
-        with cam._lock:
-            return cam.last_frame
-
-    def get_camera_detections(self, camera_id: str):
-        cam = self.cameras.get(camera_id)
-        if not cam:
-            return []
-        with cam._lock:
-            return list(cam.last_detections)
-
-=======
-            return None
-        with cam._lock:
-            return {
-                'camera_id': cam.camera_id,
-                'source': cam.source,
-                'running': cam._running,
-                'last_frame_ts': cam.last_frame_ts,
-                'last_error': cam.last_error,
-                'fps': round(cam.fps, 2),
-                'detections_count': len(cam.last_detections),
-                'yolo_enabled': DETECTION_ENABLED  # ← Indica si hay detección real
+                'yolo_enabled': DETECTION_ENABLED
             }
 
     def get_camera_frame(self, camera_id: str, with_boxes: bool = False):
@@ -491,13 +419,16 @@ class CameraManager:
                             label = det.get('label', 'unknown')
                             conf = det.get('confidence', 0.0)
                             
+                            # Color según el tipo
+                            color = (0, 255, 0) if label == 'person' else (255, 165, 0)
+                            
                             # Dibujar rectángulo
-                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                             
                             # Dibujar etiqueta
                             text = f"{label} {conf:.2f}"
                             cv2.putText(frame, text, (x1, y1-10), 
-                                      cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                                      cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
                     
                     # Recodificar a JPEG
                     _, buf = cv2.imencode('.jpg', frame)
@@ -543,23 +474,10 @@ class CameraManager:
                 'labels': list(set(d.get('label', 'unknown') for d in detections))
             }
 
->>>>>>> 94a56a6 (yolo activo!)
     def get_cameras_info(self):
         with self._lock:
             out = []
             for cid, cam in self.cameras.items():
-<<<<<<< HEAD
-                out.append(self.get_camera_status(cid))
-            return out
-
-
-# single global instance
-camera_manager = CameraManager()
-
-# optional: preload a demo camera if none exists (commented)
-# camera_manager.add_camera("demo", 0)
-# camera_manager.start_camera("demo")
-=======
                 status = self.get_camera_status(cid)
                 if status:
                     # Agregar contador de personas (solo objetos de clase 'person')
@@ -571,4 +489,3 @@ camera_manager = CameraManager()
 
 # Instancia global
 camera_manager = CameraManager()
->>>>>>> 94a56a6 (yolo activo!)
