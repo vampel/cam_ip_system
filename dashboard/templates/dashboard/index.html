@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema YOLO - Detección en Vivo</title>
+    <title>Sistema YOLO - Detección en Tiempo Real</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -46,20 +46,9 @@
             transition: all 0.3s;
         }
         
-        .btn-danger {
-            background: linear-gradient(45deg, #f44336, #c62828);
-            color: white;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(45deg, #4fc3f7, #29b6f6);
-            color: white;
-        }
-        
-        .btn-success {
-            background: linear-gradient(45deg, #4caf50, #2e7d32);
-            color: white;
-        }
+        .btn-danger { background: linear-gradient(45deg, #f44336, #c62828); color: white; }
+        .btn-primary { background: linear-gradient(45deg, #4fc3f7, #29b6f6); color: white; }
+        .btn-success { background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; }
         
         .control-panel {
             background: rgba(255, 255, 255, 0.1);
@@ -121,7 +110,6 @@
         
         .status-running { background: rgba(76, 175, 80, 0.2); color: #4caf50; border: 1px solid #4caf50; }
         .status-stopped { background: rgba(244, 67, 54, 0.2); color: #f44336; border: 1px solid #f44336; }
-        .status-starting { background: rgba(255, 152, 0, 0.2); color: #ff9800; border: 1px solid #ff9800; }
         .status-error { background: rgba(183, 28, 28, 0.2); color: #b71c1c; border: 1px solid #b71c1c; }
         
         .video-container {
@@ -144,11 +132,11 @@
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             color: white;
-            padding: 10px 20px;
+            padding: 12px 20px;
             border-radius: 25px;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             font-weight: bold;
             display: flex;
             align-items: center;
@@ -156,13 +144,14 @@
             backdrop-filter: blur(5px);
             z-index: 10;
             border: 2px solid #4caf50;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
         
         .fps-badge {
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             color: #4fc3f7;
             padding: 8px 15px;
             border-radius: 20px;
@@ -185,14 +174,8 @@
             font-size: 0.9rem;
         }
         
-        .info-label {
-            color: #bbdefb;
-        }
-        
-        .info-value {
-            color: white;
-            font-weight: 600;
-        }
+        .info-label { color: #bbdefb; }
+        .info-value { color: white; font-weight: 600; }
         
         .camera-actions {
             padding: 20px;
@@ -218,17 +201,8 @@
             animation: slideIn 0.3s ease;
         }
         
-        .success {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4caf50;
-            border: 1px solid #4caf50;
-        }
-        
-        .error {
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-            border: 1px solid #f44336;
-        }
+        .success { background: rgba(76, 175, 80, 0.2); color: #4caf50; border: 1px solid #4caf50; }
+        .error { background: rgba(244, 67, 54, 0.2); color: #f44336; border: 1px solid #f44336; }
         
         .video-placeholder {
             text-align: center;
@@ -241,44 +215,28 @@
             margin-bottom: 15px;
         }
         
-        .detection-badges {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-        
-        .detection-badge {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            background: rgba(79, 195, 247, 0.2);
-            border: 1px solid #4fc3f7;
-            color: #4fc3f7;
-        }
-        
         @keyframes slideIn {
             from { transform: translateY(-20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
         
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
         
-        .loading {
-            animation: pulse 2s infinite;
+        .updating {
+            animation: pulse 0.3s ease;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1 class="welcome">🤖 Detección YOLO en Tiempo Real - Hola, {{ user.username }}!</h1>
+        <h1 class="welcome">🤖 Sistema YOLO en Tiempo Real - {{ user.username }}</h1>
         <form method="POST" action="{% url 'logout_view' %}" style="display: inline;">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">
-                <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                <i class="fas fa-sign-out-alt"></i> Salir
             </button>
         </form>
     </div>
@@ -286,7 +244,6 @@
     {% if messages %}
         {% for message in messages %}
             <div class="message {{ message.tags }}">
-                <i class="fas fa-{{ message.tags == 'success' and 'check-circle' or 'exclamation-circle' }}"></i>
                 {{ message }}
             </div>
         {% endfor %}
@@ -298,16 +255,15 @@
             {% csrf_token %}
             <div class="form-grid">
                 <input type="text" name="camera_name" class="form-control" 
-                       placeholder="Nombre (ej: Tokyo Live, ESP32-CAM Entrada, Cámara IP Oficina)" required>
+                       placeholder="Nombre (ESP32, Tokyo Live, Entrada)" required>
                 <input type="text" name="stream_url" class="form-control" 
-                       placeholder="URL (YouTube, ESP32-CAM IP, RTSP, HTTP)" 
-                       value="https://www.youtube.com/watch?v=DjdUEyjx8GM">
+                       placeholder="URL (192.168.100.11:81/stream o YouTube)" required>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Agregar
                 </button>
             </div>
             <small style="color: #888; display: block; margin-top: 8px;">
-                Soporta: YouTube, ESP32-CAM (192.168.x.x:81/stream), Cámaras IP (rtsp://), HTTP streams
+                ESP32: 192.168.100.11:81/stream | YouTube: youtube.com/watch?v=...
             </small>
         </form>
         
@@ -326,46 +282,39 @@
 
     <div class="cameras-grid">
         {% for camera in cameras %}
-        <div class="camera-card" id="camera-{{ camera.sanitized_name }}">
+        <div class="camera-card">
             <div class="camera-header">
                 <div class="camera-title">
                     <i class="fas fa-video"></i> {{ camera.original_name }}
                 </div>
-                <span class="camera-status status-{{ camera.status }}">
-                    {{ camera.status|upper }}
+                <span class="camera-status status-{{ camera.running|yesno:'running,stopped' }}">
+                    {{ camera.running|yesno:'ACTIVA,DETENIDA' }}
                 </span>
             </div>
             
             <div class="video-container">
                 {% if camera.running %}
-                    <!-- STREAMING EN VIVO CON YOLO BOUNDING BOXES -->
-                    <img src="{% url 'video_feed' camera.sanitized_name %}" 
+                    <!-- STREAM CON BOUNDING BOXES -->
+                    <img src="/stream/{{ camera.sanitized_name }}/" 
                          class="video-frame" 
-                         id="frame-{{ camera.sanitized_name }}"
-                         alt="Stream {{ camera.original_name }}"
-                         onerror="handleError('{{ camera.sanitized_name }}', this)">
+                         alt="Stream">
                     
-                    <!-- Contador de personas en tiempo real -->
+                    <!-- Badge de personas -->
                     <div class="person-count-badge">
                         <i class="fas fa-users"></i>
-                        <span id="count-{{ camera.sanitized_name }}">{{ camera.person_count }}</span>
-                        <small style="font-size: 0.8rem; margin-left: 5px;">personas</small>
+                        <span id="person-{{ camera.sanitized_name }}">{{ camera.person_count|default:0 }}</span>
                     </div>
                     
-                    <!-- FPS en tiempo real -->
+                    <!-- Badge de FPS -->
                     <div class="fps-badge">
                         <i class="fas fa-tachometer-alt"></i>
-                        <span id="fps-{{ camera.sanitized_name }}">{{ camera.fps|floatformat:1 }}</span> FPS
+                        <span id="fps-{{ camera.sanitized_name }}">{{ camera.fps|default:0|floatformat:1 }}</span> FPS
                     </div>
                 {% else %}
                     <div class="video-placeholder">
                         <i class="fas fa-video-slash"></i>
-                        <p>Cámara {{ camera.status|default:"stopped" }}</p>
-                        {% if camera.status == 'starting' %}
-                            <p class="loading" style="margin-top: 10px;">
-                                <i class="fas fa-spinner fa-spin"></i> Conectando...
-                            </p>
-                        {% endif %}
+                        <p>Cámara detenida</p>
+                        <small>Presiona "Iniciar" para ver</small>
                     </div>
                 {% endif %}
             </div>
@@ -373,28 +322,19 @@
             <div class="camera-info">
                 <div class="info-row">
                     <span class="info-label"><i class="fas fa-link"></i> URL:</span>
-                    <span class="info-value" style="font-size: 0.75rem;">{{ camera.stream_url|truncatechars:40 }}</span>
+                    <span class="info-value" style="font-size: 0.75rem;">{{ camera.stream_url|truncatechars:35 }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label"><i class="fas fa-users"></i> Personas:</span>
-                    <span class="info-value" id="info-count-{{ camera.sanitized_name }}">{{ camera.person_count }}</span>
+                    <span class="info-value" id="info-person-{{ camera.sanitized_name }}">{{ camera.person_count|default:0 }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label"><i class="fas fa-cube"></i> Total Objetos:</span>
-                    <span class="info-value" id="total-detections-{{ camera.sanitized_name }}">{{ camera.detection_count }}</span>
+                    <span class="info-value" id="info-total-{{ camera.sanitized_name }}">{{ camera.detection_count|default:0 }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label"><i class="fas fa-tachometer-alt"></i> FPS:</span>
-                    <span class="info-value" id="info-fps-{{ camera.sanitized_name }}">{{ camera.fps|floatformat:1 }}</span>
-                </div>
-                
-                <!-- Badges de objetos detectados -->
-                <div class="detection-badges" id="badges-{{ camera.sanitized_name }}">
-                    {% if camera.recent_detections %}
-                        {% for det in camera.recent_detections|slice:":5" %}
-                            <span class="detection-badge">{{ det.label }}</span>
-                        {% endfor %}
-                    {% endif %}
+                    <span class="info-value" id="info-fps-{{ camera.sanitized_name }}">{{ camera.fps|default:0|floatformat:1 }}</span>
                 </div>
             </div>
             
@@ -415,7 +355,7 @@
                 <form method="POST" action="{% url 'remove_camera_view' camera.sanitized_name %}" style="display: inline; flex: 1;">
                     {% csrf_token %}
                     <button type="submit" class="action-btn" style="background: #ff9800;" 
-                            onclick="return confirm('¿Eliminar cámara {{ camera.original_name }}?')">
+                            onclick="return confirm('¿Eliminar {{ camera.original_name }}?')">
                         <i class="fas fa-trash"></i> Eliminar
                     </button>
                 </form>
@@ -424,212 +364,84 @@
         {% empty %}
         <div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: #888;">
             <i class="fas fa-video-slash" style="font-size: 5rem; opacity: 0.3; margin-bottom: 20px;"></i>
-            <h3>No hay cámaras configuradas</h3>
-            <p>Agrega tu primera cámara usando el formulario superior</p>
-            <small style="display: block; margin-top: 10px;">
-                Ejemplos: YouTube Live, ESP32-CAM (192.168.x.x:81/stream), Cámaras IP (rtsp://...)
-            </small>
+            <h3>No hay cámaras</h3>
+            <p>Agrega una cámara con el formulario</p>
         </div>
         {% endfor %}
     </div>
 
     <script>
-        // Función para manejar errores de carga de imagen
-        function handleError(cameraId, img) {
-            console.log('Error cargando stream:', cameraId);
-            img.style.opacity = '0.5';
-            setTimeout(() => {
-                const timestamp = new Date().getTime();
-                img.src = '{% url "video_feed" "CAMERA_ID" %}'.replace('CAMERA_ID', cameraId) + '?t=' + timestamp;
-                img.style.opacity = '1';
-            }, 3000);
-        }
+        console.log('🚀 Iniciando dashboard YOLO...');
         
-        // Actualizar estadísticas cada 2 segundos para cámaras activas
-        {% for camera in cameras %}
-        {% if camera.running %}
-        setInterval(function() {
-            fetch('/api/cameras/{{ camera.sanitized_name }}/stats/')
+        // Función para actualizar estadísticas
+        function updateCameraStats(cameraId) {
+            fetch('/api/cameras/' + cameraId + '/stats/')
                 .then(response => response.json())
                 .then(data => {
-                    // Actualizar contador de personas (badge y info)
-                    const countBadge = document.getElementById('count-{{ camera.sanitized_name }}');
-                    const countInfo = document.getElementById('info-count-{{ camera.sanitized_name }}');
-                    if (countBadge) countBadge.textContent = data.person_count || 0;
-                    if (countInfo) countInfo.textContent = data.person_count || 0;
-                    
-                    // Actualizar FPS (badge y info)
-                    const fpsBadge = document.getElementById('fps-{{ camera.sanitized_name }}');
-                    const fpsInfo = document.getElementById('info-fps-{{ camera.sanitized_name }}');
-                    if (fpsBadge) fpsBadge.textContent = (data.fps || 0).toFixed(1);
-                    if (fpsInfo) fpsInfo.textContent = (data.fps || 0).toFixed(1);
-                    
-                    // Actualizar total de objetos
-                    const totalDet = document.getElementById('total-detections-{{ camera.sanitized_name }}');
-                    if (totalDet) totalDet.textContent = data.total_detections || 0;
-                    
-                    // Actualizar badges de objetos detectados
-                    const badgesContainer = document.getElementById('badges-{{ camera.sanitized_name }}');
-                    if (badgesContainer && data.object_counts) {
-                        let badgesHTML = '';
-                        for (const [label, count] of Object.entries(data.object_counts)) {
-                            badgesHTML += `<span class="detection-badge">${label}: ${count}</span>`;
-                        }
-                        badgesContainer.innerHTML = badgesHTML;
+                    // Actualizar badge de personas
+                    const personBadge = document.getElementById('person-' + cameraId);
+                    if (personBadge && personBadge.textContent != data.person_count) {
+                        personBadge.textContent = data.person_count || 0;
+                        personBadge.parentElement.classList.add('updating');
+                        setTimeout(() => personBadge.parentElement.classList.remove('updating'), 300);
                     }
                     
-                    console.log('Stats updated for {{ camera.sanitized_name }}:', data);
+                    // Actualizar badge de FPS
+                    const fpsBadge = document.getElementById('fps-' + cameraId);
+                    if (fpsBadge) {
+                        fpsBadge.textContent = (data.fps || 0).toFixed(1);
+                    }
+                    
+                    // Actualizar info panel - Personas
+                    const infoPerson = document.getElementById('info-person-' + cameraId);
+                    if (infoPerson && infoPerson.textContent != data.person_count) {
+                        infoPerson.textContent = data.person_count || 0;
+                        infoPerson.classList.add('updating');
+                        setTimeout(() => infoPerson.classList.remove('updating'), 300);
+                    }
+                    
+                    // Actualizar info panel - Total
+                    const infoTotal = document.getElementById('info-total-' + cameraId);
+                    if (infoTotal) {
+                        infoTotal.textContent = data.total_detections || 0;
+                    }
+                    
+                    // Actualizar info panel - FPS
+                    const infoFps = document.getElementById('info-fps-' + cameraId);
+                    if (infoFps) {
+                        infoFps.textContent = (data.fps || 0).toFixed(1);
+                    }
+                    
+                    console.log('📊 [' + cameraId + '] Personas:', data.person_count, 'FPS:', data.fps.toFixed(1));
                 })
-                .catch(err => console.error('Error fetching stats:', err));
-        }, 2000); // Actualizar cada 2 segundos
+                .catch(err => console.error('❌ Error stats:', err));
+        }
+        
+        // Configurar actualización automática para cada cámara activa
+        {% for camera in cameras %}
+        {% if camera.running %}
+        (function() {
+            const cameraId = '{{ camera.sanitized_name }}';
+            console.log('📹 Configurando auto-update:', cameraId);
+            
+            // Actualizar inmediatamente
+            updateCameraStats(cameraId);
+            
+            // Luego cada 2 segundos
+            setInterval(() => updateCameraStats(cameraId), 2000);
+        })();
         {% endif %}
         {% endfor %}
         
         // Ocultar mensajes después de 5 segundos
-        setTimeout(function() {
-            document.querySelectorAll('.message').forEach(function(msg) {
+        setTimeout(() => {
+            document.querySelectorAll('.message').forEach(msg => {
                 msg.style.opacity = '0';
                 setTimeout(() => msg.style.display = 'none', 300);
             });
         }, 5000);
         
-        // Auto-reload si hay cámaras en "starting"
-        {% for camera in cameras %}
-        {% if camera.status == 'starting' %}
-        setTimeout(function() {
-            window.location.reload();
-        }, 5000);
-        {% endif %}
-        {% endfor %}
-        
-        console.log('✅ Dashboard YOLO con streaming en tiempo real activado');
-        console.log('📹 Streaming con bounding boxes visible');
-        console.log('🔄 Actualización automática cada 2 segundos');
+        console.log('✅ Dashboard listo - Auto-update cada 2s');
     </script>
 </body>
-<!-- ============================================
-     PARCHE PARA STREAMING Y AUTO-UPDATE
-     Agregar esto justo ANTES de </body>
-     ============================================ -->
-
-<script>
-// ============================================
-// STREAMING Y AUTO-ACTUALIZACIÓN
-// ============================================
-
-// 1. Cambiar todas las imágenes para que usen streaming
-document.addEventListener('DOMContentLoaded', function() {
-    {% for camera in cameras %}
-    {% if camera.running %}
-    
-    // Crear o actualizar imagen de streaming
-    const videoContainer = document.querySelector('#camera-{{ camera.sanitized_name }} .video-container');
-    if (videoContainer) {
-        // Limpiar contenido
-        videoContainer.innerHTML = '';
-        
-        // Crear imagen de streaming CON bounding boxes
-        const img = document.createElement('img');
-        img.src = '/stream/{{ camera.sanitized_name }}/';
-        img.className = 'video-frame';
-        img.id = 'frame-{{ camera.sanitized_name }}';
-        img.alt = 'Stream {{ camera.original_name }}';
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'contain';
-        img.onerror = function() {
-            console.error('Error cargando stream {{ camera.sanitized_name }}');
-            this.style.opacity = '0.5';
-            setTimeout(() => {
-                this.src = '/stream/{{ camera.sanitized_name }}/?t=' + Date.now();
-                this.style.opacity = '1';
-            }, 3000);
-        };
-        
-        // Badge de personas
-        const personBadge = document.createElement('div');
-        personBadge.style.position = 'absolute';
-        personBadge.style.top = '10px';
-        personBadge.style.right = '10px';
-        personBadge.style.background = 'rgba(0,0,0,0.8)';
-        personBadge.style.color = 'white';
-        personBadge.style.padding = '10px 20px';
-        personBadge.style.borderRadius = '25px';
-        personBadge.style.fontSize = '1.2rem';
-        personBadge.style.fontWeight = 'bold';
-        personBadge.style.border = '2px solid #4caf50';
-        personBadge.style.zIndex = '10';
-        personBadge.innerHTML = '<i class="fas fa-users"></i> <span id="count-{{ camera.sanitized_name }}">{{ camera.person_count }}</span> <small>personas</small>';
-        
-        // Badge de FPS
-        const fpsBadge = document.createElement('div');
-        fpsBadge.style.position = 'absolute';
-        fpsBadge.style.top = '10px';
-        fpsBadge.style.left = '10px';
-        fpsBadge.style.background = 'rgba(0,0,0,0.8)';
-        fpsBadge.style.color = '#4fc3f7';
-        fpsBadge.style.padding = '8px 15px';
-        fpsBadge.style.borderRadius = '20px';
-        fpsBadge.style.fontSize = '0.9rem';
-        fpsBadge.style.fontWeight = 'bold';
-        fpsBadge.style.border = '2px solid #4fc3f7';
-        fpsBadge.style.zIndex = '10';
-        fpsBadge.innerHTML = '<i class="fas fa-tachometer-alt"></i> <span id="fps-{{ camera.sanitized_name }}">{{ camera.fps|floatformat:1 }}</span> FPS';
-        
-        // Agregar todo al container
-        videoContainer.style.position = 'relative';
-        videoContainer.appendChild(img);
-        videoContainer.appendChild(personBadge);
-        videoContainer.appendChild(fpsBadge);
-        
-        console.log('✅ Stream configurado para {{ camera.sanitized_name }}');
-    }
-    
-    // 2. Auto-actualizar estadísticas cada 2 segundos
-    setInterval(function() {
-        fetch('/api/cameras/{{ camera.sanitized_name }}/stats/')
-            .then(response => response.json())
-            .then(data => {
-                // Actualizar contador de personas en badge
-                const countBadge = document.getElementById('count-{{ camera.sanitized_name }}');
-                if (countBadge) {
-                    countBadge.textContent = data.person_count || 0;
-                }
-                
-                // Actualizar FPS en badge
-                const fpsBadge = document.getElementById('fps-{{ camera.sanitized_name }}');
-                if (fpsBadge) {
-                    fpsBadge.textContent = (data.fps || 0).toFixed(1);
-                }
-                
-                // Buscar y actualizar en info panel también
-                const cardInfo = document.querySelector('#camera-{{ camera.sanitized_name }} .camera-info');
-                if (cardInfo) {
-                    // Actualizar "Personas detectadas"
-                    const personInfo = cardInfo.querySelector('.info-row:nth-child(2) .info-value');
-                    if (personInfo) {
-                        personInfo.textContent = data.person_count || 0;
-                    }
-                    
-                    // Actualizar FPS
-                    const fpsInfo = cardInfo.querySelectorAll('.info-value')[2];
-                    if (fpsInfo) {
-                        fpsInfo.textContent = (data.fps || 0).toFixed(1);
-                    }
-                }
-                
-                console.log('📊 Stats actualizados {{ camera.sanitized_name }}:', data.person_count, 'personas,', data.fps.toFixed(1), 'FPS');
-            })
-            .catch(err => {
-                console.error('❌ Error actualizando stats {{ camera.sanitized_name }}:', err);
-            });
-    }, 2000); // Cada 2 segundos
-    
-    {% endif %}
-    {% endfor %}
-    
-    console.log('🚀 Sistema de streaming en tiempo real activado');
-});
-
-</script>
 </html>
